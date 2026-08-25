@@ -24,8 +24,11 @@ from .chunker import Chunk
 from .glossary import Sense
 
 __all__ = [
-    "ProviderConfig", "TranslationClient", "ChunkResult",
-    "PermanentError", "TransientError",
+    "ProviderConfig",
+    "TranslationClient",
+    "ChunkResult",
+    "PermanentError",
+    "TransientError",
 ]
 
 
@@ -39,6 +42,7 @@ class TransientError(RuntimeError):
 
 # ------------------------------------------------------------------ 配置
 
+
 def _normalize_base(raw: str) -> str:
     b = (raw or "").strip().rstrip("/")
     if b.endswith("/v1"):
@@ -50,8 +54,8 @@ def _normalize_base(raw: str) -> str:
 class ProviderConfig:
     base_url: str
     api_key: str = field(repr=False)
-    protocol: str = "anthropic"        # anthropic | openai
-    auth: str = "bearer"               # bearer | x-api-key
+    protocol: str = "anthropic"  # anthropic | openai
+    auth: str = "bearer"  # bearer | x-api-key
     path_prefix: str = "/v1"
     model: str = ""
     max_output_tokens: int = 8192
@@ -85,12 +89,17 @@ class ProviderConfig:
 
     def redacted(self) -> dict:
         return {
-            "base_url": self.base_url, "api_key": self.masked_key(),
-            "protocol": self.protocol, "auth": self.auth,
-            "path_prefix": self.path_prefix, "model": self.model,
+            "base_url": self.base_url,
+            "api_key": self.masked_key(),
+            "protocol": self.protocol,
+            "auth": self.auth,
+            "path_prefix": self.path_prefix,
+            "model": self.model,
             "max_output_tokens": self.max_output_tokens,
-            "concurrency": self.concurrency, "timeout": self.timeout,
-            "max_retries": self.max_retries, "supports_cache": self.supports_cache,
+            "concurrency": self.concurrency,
+            "timeout": self.timeout,
+            "max_retries": self.max_retries,
+            "supports_cache": self.supports_cache,
         }
 
     def __repr__(self) -> str:
@@ -98,6 +107,7 @@ class ProviderConfig:
 
 
 # ------------------------------------------------------------------ 结果
+
 
 @dataclass(frozen=True)
 class ChunkResult:
@@ -125,6 +135,7 @@ def _http_session() -> requests.Session:
         session = requests.Session()
         _HTTP_LOCAL.session = session
     return session
+
 
 def _http_transport(url: str, headers: dict, body: dict, timeout: int):
     data = json.dumps(body, ensure_ascii=False).encode("utf-8")
@@ -176,13 +187,13 @@ def _json_candidates(t: str):
         yield m.group(1)
     i, j = t.find("{"), t.rfind("}")
     if i != -1 and j > i:
-        yield t[i:j + 1]
+        yield t[i : j + 1]
 
 
 _TRANSLATION_PAIR = re.compile(
     r'"id"\s*:\s*"(?P<id>[^"\r\n]+)"\s*,\s*'
     r'"zh"\s*:\s*"(?P<zh>.*?)"\s*}'
-    r'(?=\s*(?:,|\]))',
+    r"(?=\s*(?:,|\]))",
     re.S,
 )
 _JSON_ESCAPE = re.compile(r"\\(u[0-9a-fA-F]{4}|[\"\\/bfnrt])")
@@ -190,8 +201,14 @@ _JSON_ESCAPE = re.compile(r"\\(u[0-9a-fA-F]{4}|[\"\\/bfnrt])")
 
 def _unescape_json_fragment(value: str) -> str:
     simple = {
-        '"': '"', "\\": "\\", "/": "/", "b": "\b", "f": "\f",
-        "n": "\n", "r": "\r", "t": "\t",
+        '"': '"',
+        "\\": "\\",
+        "/": "/",
+        "b": "\b",
+        "f": "\f",
+        "n": "\n",
+        "r": "\r",
+        "t": "\t",
     }
 
     def replace(match: re.Match) -> str:
@@ -215,8 +232,11 @@ def _extract_translation_pairs(text: str) -> list[dict[str, str]]:
 
 def _reply_text(protocol: str, payload: dict) -> str:
     if protocol == "anthropic":
-        parts = [b.get("text", "") for b in payload.get("content") or []
-                 if isinstance(b, dict) and b.get("type") == "text"]
+        parts = [
+            b.get("text", "")
+            for b in payload.get("content") or []
+            if isinstance(b, dict) and b.get("type") == "text"
+        ]
         return "".join(parts)
     choices = payload.get("choices") or [{}]
     return str((choices[0].get("message") or {}).get("content") or "")
@@ -248,8 +268,13 @@ TRANSLATE_SYSTEM = """你是一名专业译者，把英文书翻译成简体中�
 
 
 class TranslationClient:
-    def __init__(self, cfg: ProviderConfig, transport=None,
-                 max_retries: int | None = None, backoff_base: float = 1.0):
+    def __init__(
+        self,
+        cfg: ProviderConfig,
+        transport=None,
+        max_retries: int | None = None,
+        backoff_base: float = 1.0,
+    ):
         self.cfg = cfg
         self._transport = transport or _http_transport
         self.max_retries = max_retries if max_retries is not None else cfg.max_retries
@@ -261,15 +286,21 @@ class TranslationClient:
         """待译 ID。上下文块绝不出现在这里——混进来会重复翻译并在装配时重段。"""
         return tuple(b.id for b in chunk.blocks)
 
-    def build_payload(self, chunk: Chunk, style_card: str, chapter_card: str,
-                      senses: list[Sense]) -> dict:
+    def build_payload(
+        self, chunk: Chunk, style_card: str, chapter_card: str, senses: list[Sense]
+    ) -> dict:
         return {
             "chunk_id": chunk.id,
             "style_card": style_card,
             "chapter_card": chapter_card,
             "glossary": [
-                {"en": s.surface, "zh": s.zh, "first_use": s.display_first_use,
-                 "author": s.author, "note": s.decision}
+                {
+                    "en": s.surface,
+                    "zh": s.zh,
+                    "first_use": s.display_first_use,
+                    "author": s.author,
+                    "note": s.decision,
+                }
                 for s in senses
             ],
             "prev_context_en": [b.text for b in chunk.prev_context],
@@ -299,8 +330,9 @@ class TranslationClient:
 
     # -------------------------------------------------- call
 
-    def translate_chunk(self, chunk: Chunk, style_card: str, chapter_card: str,
-                        senses: list[Sense]) -> ChunkResult:
+    def translate_chunk(
+        self, chunk: Chunk, style_card: str, chapter_card: str, senses: list[Sense]
+    ) -> ChunkResult:
         overall_started = time.monotonic()
         payload = self.build_payload(chunk, style_card, chapter_card, senses)
         body = self.build_body(chunk, payload)
@@ -312,7 +344,7 @@ class TranslationClient:
                 status, resp = self._transport(
                     self.cfg.endpoint(), self.cfg.headers(), body, self.cfg.timeout
                 )
-            except Exception as e:                        # noqa: BLE001
+            except Exception as e:  # noqa: BLE001
                 last = TransientError(f"传输失败：{type(e).__name__}: {e}")
                 self._sleep(attempt)
                 continue
@@ -333,9 +365,7 @@ class TranslationClient:
                     if isinstance(t, dict) and t.get("id")
                 }
                 usage = dict(resp.get("usage") or {})
-                usage["client_elapsed_seconds"] = round(
-                    time.monotonic() - overall_started, 3
-                )
+                usage["client_elapsed_seconds"] = round(time.monotonic() - overall_started, 3)
                 return ChunkResult(
                     chunk_id=chunk.id,
                     translations={k: v for k, v in got.items() if k in wanted},
@@ -349,11 +379,7 @@ class TranslationClient:
             # 这家网关在突发请求时偶尔返回 HTTP 403 + 空 body；同一凭据紧接着
             # 重试即可成功，性质不同于带明确错误信息的权限拒绝。只对白名单形状
             # （无 error 且 _raw 为空）重试，避免掩盖真正的鉴权/权限问题。
-            blank_gateway_403 = (
-                status == 403
-                and not resp.get("error")
-                and resp.get("_raw") == ""
-            )
+            blank_gateway_403 = status == 403 and not resp.get("error") and resp.get("_raw") == ""
             if status == 429 or status >= 500 or blank_gateway_403:
                 last = TransientError(f"{chunk.id}：HTTP {status} {msg}")
                 self._sleep(attempt)

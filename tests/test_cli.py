@@ -67,8 +67,7 @@ def test_inspect_never_needs_api_key(tmp_path, capsys):
 def test_env_loader_keeps_key_available_without_printing_it(tmp_path, capsys):
     env_file = tmp_path / ".env"
     env_file.write_text(
-        "TRANSLATE_BASE_URL=https://relay.example\n"
-        "TRANSLATE_API_KEY=super-secret\n",
+        "TRANSLATE_BASE_URL=https://relay.example\nTRANSLATE_API_KEY=super-secret\n",
         encoding="utf-8",
     )
     values = _load_env(env_file)
@@ -86,10 +85,16 @@ def test_build_requires_frozen_snapshot_unless_explicitly_overridden(tmp_path, c
         "TRANSLATE_MODEL=test-model\n",
         encoding="utf-8",
     )
-    code = main([
-        "build", str(source), "--env-file", str(env_file),
-        "--build-root", str(tmp_path / "build"),
-    ])
+    code = main(
+        [
+            "build",
+            str(source),
+            "--env-file",
+            str(env_file),
+            "--build-root",
+            str(tmp_path / "build"),
+        ]
+    )
     assert code == 2
     assert "冻结术语快照" in capsys.readouterr().err
 
@@ -98,18 +103,23 @@ def test_freeze_glossary_creates_versioned_snapshot(tmp_path, capsys):
     root = tmp_path / "glossary"
     (root / "domains").mkdir(parents=True)
     (root / "domains" / "jtbd.yaml").write_text(
-        "senses:\n"
-        "  - id: jtbd.job\n"
-        "    surface: job\n"
-        "    zh: 任务\n"
-        "    status: approved\n",
+        "senses:\n  - id: jtbd.job\n    surface: job\n    zh: 任务\n    status: approved\n",
         encoding="utf-8",
     )
     output = root / "snapshots" / "jtbd.lock"
-    code = main([
-        "freeze-glossary", "--root", str(root), "--domain", "jtbd",
-        "--book", "cal", "--output", str(output),
-    ])
+    code = main(
+        [
+            "freeze-glossary",
+            "--root",
+            str(root),
+            "--domain",
+            "jtbd",
+            "--book",
+            "cal",
+            "--output",
+            str(output),
+        ]
+    )
     assert code == 0
     assert output.exists()
     assert "approved 1" in capsys.readouterr().out
@@ -133,12 +143,24 @@ def test_freeze_glossary_accepts_author_filter(tmp_path, capsys):
         encoding="utf-8",
     )
     output = root / "snapshots" / "klement.lock"
-    code = main([
-        "freeze-glossary", "--root", str(root), "--domain", "jtbd",
-        "--book", "sample", "--author", "Author One", "--output", str(output),
-    ])
+    code = main(
+        [
+            "freeze-glossary",
+            "--root",
+            str(root),
+            "--domain",
+            "jtbd",
+            "--book",
+            "sample",
+            "--author",
+            "Author One",
+            "--output",
+            str(output),
+        ]
+    )
     assert code == 0
     from pipeline.glossary import load_snapshot
+
     snap = load_snapshot(output)
     assert [sense.id for sense in snap.senses] == ["klement"]
     assert snap.authors == ("Author One",)
@@ -162,11 +184,23 @@ def test_build_parser_accepts_repeatable_chapter_filter(monkeypatch, tmp_path):
 
     monkeypatch.setattr("pipeline.cli.build_book", fake_build_book)
     try:
-        main([
-            "build", str(source), "--env-file", str(env_file),
-            "--allow-empty-glossary", "--chapter", "one",
-            "--chapter", "two", "--chapter-level", "1", "--chapter-level", "2",
-        ])
+        main(
+            [
+                "build",
+                str(source),
+                "--env-file",
+                str(env_file),
+                "--allow-empty-glossary",
+                "--chapter",
+                "one",
+                "--chapter",
+                "two",
+                "--chapter-level",
+                "1",
+                "--chapter-level",
+                "2",
+            ]
+        )
     except RuntimeError as exc:
         assert str(exc) == "stop after argument capture"
     assert captured["chapters"] == ("one", "two")

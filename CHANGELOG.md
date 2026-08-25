@@ -2,6 +2,28 @@
 
 All notable changes are documented here. Versions follow Semantic Versioning while the project remains pre-1.0.
 
+## [0.3.0] - 2026-08-25
+
+### Added
+
+- Identity-bound `review-context.json` for validating human and AI review patches.
+- Atomic multi-chunk review imports with a review verification report.
+- English `surface_aliases` and explicit `forbidden_zh` glossary fields.
+- Detection of Chinese substitutions embedded inside preserved English terms.
+- Duplicate-source translation consistency and corpus translation-split reports.
+- Ruff lint/format checks and visible test coverage in CI.
+
+### Changed
+
+- Frozen terms are included in translation-split analysis; single outliers and up to five variants are retained for human review.
+- CI now cancels superseded runs, times out after ten minutes, and builds distributions once instead of on every matrix leg.
+- Development test count increased from 316 to 328.
+
+### Fixed
+
+- Review patches can no longer write translations that fail block-level quality gates.
+- A real review regression that changed `Customer Job Theory` to a mixed-language term was corrected through an append-only review record.
+
 ## [0.2.0] - 2026-08-25
 
 ### Added

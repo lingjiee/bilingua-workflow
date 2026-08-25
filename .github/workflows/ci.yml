@@ -8,10 +8,33 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  quality:
+    name: Ruff
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          version: "0.12.5"
+          enable-cache: true
+          python-version: "3.12"
+      - name: Install locked dependencies
+        run: uv sync --locked --extra dev
+      - name: Lint
+        run: uv run ruff check .
+      - name: Check formatting
+        run: uv run ruff format --check .
+
   test:
     name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -27,6 +50,11 @@ jobs:
       - name: Install locked dependencies
         run: uv sync --locked --extra dev
       - name: Run offline test suite
+        if: ${{ matrix.os != 'ubuntu-latest' || matrix.python-version != '3.12' }}
         run: uv run pytest
+      - name: Run offline test suite with coverage
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' }}
+        run: uv run pytest --cov=pipeline --cov-report=term-missing
       - name: Build wheel and source distribution
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' }}
         run: uv build

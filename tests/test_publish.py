@@ -38,9 +38,7 @@ def test_failed_verification_never_touches_vault(tmp_path):
         findings=(Finding("p1", "empty", "empty", Severity.ERROR),),
     )
     with pytest.raises(PublicationBlockedError):
-        publish_book(
-            tmp_path, "book", "Book", [("one", "# One\n")], [failed]
-        )
+        publish_book(tmp_path, "book", "Book", [("one", "# One\n")], [failed])
     assert list(tmp_path.iterdir()) == []
 
 
@@ -50,9 +48,7 @@ def test_existing_book_is_never_overwritten(tmp_path):
     marker = existing / "my-note.md"
     marker.write_text("keep me", encoding="utf-8")
     with pytest.raises(FileExistsError):
-        publish_book(
-            tmp_path, "book", "Book", [("one", "# One\n")], [clean_report()]
-        )
+        publish_book(tmp_path, "book", "Book", [("one", "# One\n")], [clean_report()])
     assert marker.read_text(encoding="utf-8") == "keep me"
 
 
@@ -75,7 +71,11 @@ def test_optional_images_are_copied(tmp_path):
     (images / "figure.jpg").write_bytes(b"jpeg")
     vault = tmp_path / "vault"
     report = publish_book(
-        vault, "book", "Book", [("one", "# One\n")], [clean_report()],
+        vault,
+        "book",
+        "Book",
+        [("one", "# One\n")],
+        [clean_report()],
         images_dir=images,
     )
     assert (report.destination / "images" / "figure.jpg").read_bytes() == b"jpeg"

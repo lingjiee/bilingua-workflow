@@ -24,8 +24,14 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 __all__ = [
-    "Sense", "Glossary", "Snapshot", "OverrideWithoutReason",
-    "merge_layers", "freeze", "load_layers", "load_snapshot",
+    "Sense",
+    "Glossary",
+    "Snapshot",
+    "OverrideWithoutReason",
+    "merge_layers",
+    "freeze",
+    "load_layers",
+    "load_snapshot",
 ]
 
 APPROVED = "approved"
@@ -50,41 +56,68 @@ class Sense:
     """一个义项。不是"一个词"——同一个词可以有多个义项。"""
 
     id: str
-    surface: str                       # 英文词形
-    zh: str                            # 统一显示译名
-    parent: str = ""                   # 上位概念，三家共享，是"在争同一件事"的载体
-    author: str = ""                   # 该义项属于哪位作者的用法
-    first_use: str = ""                # 每章首现写法，留空则自动生成
-    aliases_zh: tuple[str, ...] = ()   # 通行译名，供检索对齐
-    definition_zh: str = ""            # 按本作者的定义记录，不与他家合并
-    evidence: tuple[str, ...] = ()     # 定义性段落的段落 ID
-    decision: str = ""                 # 为什么这么定 / 为什么覆盖上层
-    status: str = CANDIDATE            # candidate | approved | superseded
-    layer: str = ""                    # global | domain | book，合并时写入
-    overrides: tuple[str, ...] = ()    # 被本条覆盖掉的旧译名，备查
+    surface: str  # 英文词形
+    zh: str  # 统一显示译名
+    surface_aliases: tuple[str, ...] = ()  # 英文短形、缩写或排版变体
+    parent: str = ""  # 上位概念，三家共享，是"在争同一件事"的载体
+    author: str = ""  # 该义项属于哪位作者的用法
+    first_use: str = ""  # 每章首现写法，留空则自动生成
+    aliases_zh: tuple[str, ...] = ()  # 通行译名，供检索对齐
+    forbidden_zh: tuple[str, ...] = ()  # 已确认不应在本义项使用的竞争译名
+    definition_zh: str = ""  # 按本作者的定义记录，不与他家合并
+    evidence: tuple[str, ...] = ()  # 定义性段落的段落 ID
+    decision: str = ""  # 为什么这么定 / 为什么覆盖上层
+    status: str = CANDIDATE  # candidate | approved | superseded
+    layer: str = ""  # global | domain | book，合并时写入
+    overrides: tuple[str, ...] = ()  # 被本条覆盖掉的旧译名，备查
 
     @property
     def display_first_use(self) -> str:
         return self.first_use or f"{self.zh}（{self.surface}）"
 
+    @property
+    def source_forms(self) -> tuple[str, ...]:
+        """主词形及英文别名；保持声明顺序并去重。"""
+        return tuple(
+            dict.fromkeys(
+                value.strip()
+                for value in (self.surface, *self.surface_aliases)
+                if value and value.strip()
+            )
+        )
+
     def to_dict(self) -> dict:
         d = {
-            "id": self.id, "surface": self.surface, "zh": self.zh,
-            "parent": self.parent, "author": self.author,
-            "first_use": self.first_use, "aliases_zh": list(self.aliases_zh),
-            "definition_zh": self.definition_zh, "evidence": list(self.evidence),
-            "decision": self.decision, "status": self.status,
-            "layer": self.layer, "overrides": list(self.overrides),
+            "id": self.id,
+            "surface": self.surface,
+            "zh": self.zh,
+            "surface_aliases": list(self.surface_aliases),
+            "parent": self.parent,
+            "author": self.author,
+            "first_use": self.first_use,
+            "aliases_zh": list(self.aliases_zh),
+            "forbidden_zh": list(self.forbidden_zh),
+            "definition_zh": self.definition_zh,
+            "evidence": list(self.evidence),
+            "decision": self.decision,
+            "status": self.status,
+            "layer": self.layer,
+            "overrides": list(self.overrides),
         }
         return {k: v for k, v in d.items() if v not in ("", [], ())}
 
     @classmethod
     def from_dict(cls, d: dict) -> "Sense":
         return cls(
-            id=str(d["id"]), surface=str(d.get("surface", "")),
-            zh=str(d.get("zh", "")), parent=str(d.get("parent", "")),
-            author=str(d.get("author", "")), first_use=str(d.get("first_use", "")),
+            id=str(d["id"]),
+            surface=str(d.get("surface", "")),
+            zh=str(d.get("zh", "")),
+            surface_aliases=_tup(d.get("surface_aliases")),
+            parent=str(d.get("parent", "")),
+            author=str(d.get("author", "")),
+            first_use=str(d.get("first_use", "")),
             aliases_zh=_tup(d.get("aliases_zh")),
+            forbidden_zh=_tup(d.get("forbidden_zh")),
             definition_zh=str(d.get("definition_zh", "")),
             evidence=_tup(d.get("evidence")),
             decision=str(d.get("decision", "")),
@@ -96,6 +129,7 @@ class Sense:
 
 # ------------------------------------------------------------------ 匹配
 
+
 def _term_pattern(surface: str) -> re.Pattern:
     """词边界匹配，容忍简单复数。
 
@@ -105,12 +139,10 @@ def _term_pattern(surface: str) -> re.Pattern:
     core = re.escape(surface.strip())
     core = core.replace(r"\ ", r"\s+")
     # hire/fire 在术语表中是动词隐喻，按动词屈折；其他条目只容忍简单复数。
-    suffix = (
-        r"(?:d|s|ing)?"
-        if surface.strip().casefold() in {"hire", "fire"}
-        else r"(?:s|es)?"
-    )
-    return re.compile(rf"\b{core}{suffix}\b", re.IGNORECASE)
+    suffix = r"(?:d|s|ing)?" if surface.strip().casefold() in {"hire", "fire"} else r"(?:s|es)?"
+    letters = "".join(char for char in surface if char.isalpha())
+    flags = 0 if letters and letters == letters.upper() else re.IGNORECASE
+    return re.compile(rf"\b{core}{suffix}\b", flags)
 
 
 @dataclass
@@ -138,7 +170,7 @@ class Glossary:
         out: list[Sense] = []
         seen: set[str] = set()
         for s in self.approved():
-            if s.id in seen or not s.surface:
+            if s.id in seen or not s.source_forms:
                 continue
             searchable = text
             if s.surface.strip().casefold() == "fire":
@@ -151,16 +183,15 @@ class Glossary:
                 )
             if s.surface.strip().casefold() == "lemon":
                 # Lemon V8 是产品口味名，不是阿克洛夫“柠檬车”概念。
-                searchable = re.sub(
-                    r"\bLemon\s+V8\b", "", searchable, flags=re.IGNORECASE
-                )
-            if _term_pattern(s.surface).search(searchable):
+                searchable = re.sub(r"\bLemon\s+V8\b", "", searchable, flags=re.IGNORECASE)
+            if any(_term_pattern(form).search(searchable) for form in s.source_forms):
                 out.append(s)
                 seen.add(s.id)
         return out
 
 
 # ------------------------------------------------------------------ 合并
+
 
 def merge_layers(
     global_: list[Sense] | None = None,
@@ -172,7 +203,9 @@ def merge_layers(
     order: list[str] = []
 
     for layer_name, layer in (
-        ("global", global_ or []), ("domain", domain or []), ("book", book or [])
+        ("global", global_ or []),
+        ("domain", domain or []),
+        ("book", book or []),
     ):
         for s in layer:
             incoming = replace(s, layer=layer_name)
@@ -190,13 +223,12 @@ def merge_layers(
                     f"{s.id}：{layer_name} 层把 “{prev.zh}” 改成 “{incoming.zh}”"
                     f"却没有写 decision。静默覆盖会让半年后的你无法解释这个改动。"
                 )
-            merged[s.id] = replace(
-                incoming, overrides=prev.overrides + (prev.zh,)
-            )
+            merged[s.id] = replace(incoming, overrides=prev.overrides + (prev.zh,))
     return Glossary(senses=[merged[i] for i in order])
 
 
 # ------------------------------------------------------------------ 快照
+
 
 @dataclass(frozen=True)
 class Snapshot:
@@ -226,6 +258,7 @@ class Snapshot:
 
     def save(self, path) -> None:
         import yaml
+
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         header = (
@@ -234,8 +267,7 @@ class Snapshot:
             f"# 改术语请改 glossary/ 下的层文件，然后重新 freeze。\n"
         )
         p.write_text(
-            header + yaml.safe_dump(self.to_dict(), allow_unicode=True,
-                                    sort_keys=False),
+            header + yaml.safe_dump(self.to_dict(), allow_unicode=True, sort_keys=False),
             encoding="utf-8",
         )
 
@@ -244,9 +276,16 @@ def _fingerprint(senses: list[Sense]) -> str:
     """内容指纹。按 id 排序，所以两个人加词顺序不同不会产生不同版本。"""
     payload = [
         {
-            "id": s.id, "surface": s.surface, "zh": s.zh, "parent": s.parent,
-            "author": s.author, "first_use": s.first_use,
-            "aliases_zh": sorted(s.aliases_zh), "status": s.status,
+            "id": s.id,
+            "surface": s.surface,
+            "zh": s.zh,
+            "parent": s.parent,
+            "author": s.author,
+            "first_use": s.first_use,
+            "surface_aliases": sorted(s.surface_aliases),
+            "aliases_zh": sorted(s.aliases_zh),
+            "forbidden_zh": sorted(s.forbidden_zh),
+            "status": s.status,
         }
         for s in sorted(senses, key=lambda x: x.id)
     ]
@@ -276,6 +315,7 @@ def freeze(
 
 def load_snapshot(path) -> Snapshot:
     import yaml
+
     d = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
     return Snapshot(
         version=str(d.get("version", "")),
@@ -287,14 +327,16 @@ def load_snapshot(path) -> Snapshot:
 
 # ------------------------------------------------------------------ 加载
 
+
 def _read_layer(path: Path) -> list[Sense]:
     if not path.exists():
         return []
     import yaml
+
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not data:
         return []
-    if isinstance(data, dict):          # 容忍 {senses: [...]} 包一层
+    if isinstance(data, dict):  # 容忍 {senses: [...]} 包一层
         data = data.get("senses") or []
     return [Sense.from_dict(d) for d in data if isinstance(d, dict)]
 

@@ -64,11 +64,11 @@ def paragraph_id(book: str, chapter: str, text: str, occurrence: int = 0) -> str
 
 @dataclass(frozen=True)
 class Block:
-    kind: str            # para | heading | list | quote | table | image | code | toc | rule
-    text: str            # 原始 markdown
-    chapter: str         # 章节 slug
-    level: int = 0       # 标题层级，其余为 0
-    id: str = ""         # 稳定主键，仅 translatable 块有意义
+    kind: str  # para | heading | list | quote | table | image | code | toc | rule
+    text: str  # 原始 markdown
+    chapter: str  # 章节 slug
+    level: int = 0  # 标题层级，其余为 0
+    id: str = ""  # 稳定主键，仅 translatable 块有意义
 
     @property
     def translatable(self) -> bool:
@@ -113,6 +113,7 @@ class Document:
 
 # ------------------------------------------------------------ frontmatter
 
+
 def _split_frontmatter(src: str) -> tuple[dict, str]:
     """book2md 产物开头是 YAML frontmatter。没有 pyyaml 也要能跑，
     所以这里只做够用的浅解析：标量 + 一层列表。"""
@@ -122,7 +123,7 @@ def _split_frontmatter(src: str) -> tuple[dict, str]:
     if end == -1:
         return {}, src
     raw = src[3:end].strip("\n")
-    rest = src[end + 4:]
+    rest = src[end + 4 :]
 
     meta: dict = {}
     current_list_key: str | None = None
@@ -147,6 +148,7 @@ def _split_frontmatter(src: str) -> tuple[dict, str]:
 
 
 # ------------------------------------------------------------ block split
+
 
 def _raw_blocks(body: str) -> list[list[str]]:
     """按空行切块，但代码围栏内的空行不算边界。"""
@@ -201,6 +203,7 @@ def _classify(lines: list[str]) -> tuple[str, int]:
 
 # ------------------------------------------------------------ parse
 
+
 def parse_markdown(
     src: str,
     book_slug: str,
@@ -242,9 +245,7 @@ def parse_markdown(
             seen[key] = occ + 1
             block_id = paragraph_id(book_slug, chapter, text, occurrence=occ)
 
-        doc.blocks.append(
-            Block(kind=kind, text=text, chapter=chapter, level=level, id=block_id)
-        )
+        doc.blocks.append(Block(kind=kind, text=text, chapter=chapter, level=level, id=block_id))
     return doc
 
 

@@ -13,30 +13,27 @@ import json
 
 import pytest
 
+from pipeline.chunker import chunk_document
 from pipeline.client import (
-    ChunkResult,
     PermanentError,
     ProviderConfig,
     TransientError,
     TranslationClient,
 )
-from pipeline.chunker import chunk_document
 from pipeline.document import parse_markdown
 
-
 # ------------------------------------------------------------ 假传输层
+
 
 class FakeTransport:
     """按脚本返回。每次调用记录请求，供断言。"""
 
     def __init__(self, script):
-        self.script = list(script)      # [(status, payload), ...]
+        self.script = list(script)  # [(status, payload), ...]
         self.calls: list[dict] = []
 
     def __call__(self, url, headers, body, timeout):
-        self.calls.append(
-            {"url": url, "headers": headers, "body": body, "timeout": timeout}
-        )
+        self.calls.append({"url": url, "headers": headers, "body": body, "timeout": timeout})
         if not self.script:
             raise AssertionError("传输层被调用的次数超出脚本")
         return self.script.pop(0)
@@ -44,11 +41,15 @@ class FakeTransport:
 
 def anthropic_reply(mapping: dict[str, str], usage=None):
     payload = {
-        "content": [{"type": "text",
-                     "text": json.dumps({"translations":
-                                         [{"id": k, "zh": v}
-                                          for k, v in mapping.items()]},
-                                        ensure_ascii=False)}],
+        "content": [
+            {
+                "type": "text",
+                "text": json.dumps(
+                    {"translations": [{"id": k, "zh": v} for k, v in mapping.items()]},
+                    ensure_ascii=False,
+                ),
+            }
+        ],
         "usage": usage or {"input_tokens": 100, "output_tokens": 50},
     }
     return 200, payload
@@ -56,25 +57,35 @@ def anthropic_reply(mapping: dict[str, str], usage=None):
 
 def openai_reply(mapping: dict[str, str]):
     payload = {
-        "choices": [{"message": {"content": json.dumps(
-            {"translations": [{"id": k, "zh": v} for k, v in mapping.items()]},
-            ensure_ascii=False)}}],
+        "choices": [
+            {
+                "message": {
+                    "content": json.dumps(
+                        {"translations": [{"id": k, "zh": v} for k, v in mapping.items()]},
+                        ensure_ascii=False,
+                    )
+                }
+            }
+        ],
         "usage": {"prompt_tokens": 100, "completion_tokens": 50},
     }
     return 200, payload
 
 
 def make_chunk():
-    doc = parse_markdown("# Chapter One\n\nFirst para.\n\nSecond para.\n",
-                         book_slug="t")
+    doc = parse_markdown("# Chapter One\n\nFirst para.\n\nSecond para.\n", book_slug="t")
     return chunk_document(doc, target_words=10_000)[0]
 
 
-CFG = ProviderConfig(base_url="https://relay.example.com", api_key="secret-key-123456",
-                     model="provider/example-model")
+CFG = ProviderConfig(
+    base_url="https://relay.example.com",
+    api_key="secret-key-123456",
+    model="provider/example-model",
+)
 
 
 # ------------------------------------------------------------ 配置
+
 
 class TestProviderConfig:
     def test_base_url_is_normalized(self):
@@ -120,11 +131,16 @@ class TestProviderConfig:
 
 # ------------------------------------------------------------ 请求构造
 
+
 class TestRequestShape:
     def test_anthropic_request_carries_model_and_ceiling(self):
         t = FakeTransport([anthropic_reply({})])
-        cfg = ProviderConfig(base_url="https://x.ai", api_key="k",
-                             model="provider/example-model", max_output_tokens=8192)
+        cfg = ProviderConfig(
+            base_url="https://x.ai",
+            api_key="k",
+            model="provider/example-model",
+            max_output_tokens=8192,
+        )
         c = TranslationClient(cfg, transport=t)
         ch = make_chunk()
         try:
@@ -137,8 +153,7 @@ class TestRequestShape:
 
     def test_openai_request_uses_messages_array(self):
         t = FakeTransport([openai_reply({})])
-        cfg = ProviderConfig(base_url="https://x.ai", api_key="k",
-                             protocol="openai", model="gpt-x")
+        cfg = ProviderConfig(base_url="https://x.ai", api_key="k", protocol="openai", model="gpt-x")
         c = TranslationClient(cfg, transport=t)
         try:
             c.translate_chunk(make_chunk(), style_card="S", chapter_card="C", senses=[])
@@ -159,20 +174,20 @@ class TestRequestShape:
 
     def test_context_blocks_are_sent_but_not_requested_for_translation(self):
         doc = parse_markdown(
-            "# C\n\n" + "\n\n".join(f"Para number {i} here." for i in range(10)),
-            book_slug="t")
+            "# C\n\n" + "\n\n".join(f"Para number {i} here." for i in range(10)), book_slug="t"
+        )
         chunks = chunk_document(doc, target_words=8, context_blocks=2)
         ch = next(c for c in chunks if c.prev_context)
         t = FakeTransport([anthropic_reply({b.id: "译" for b in ch.blocks})])
         c = TranslationClient(CFG, transport=t)
         c.translate_chunk(ch, style_card="S", chapter_card="C", senses=[])
-        body = t.calls[0]["body"]
         requested = c.requested_ids(ch)
         for b in ch.prev_context:
             assert b.id not in requested, "上下文块不能出现在待译 ID 列表里"
 
     def test_glossary_senses_are_injected(self):
         from pipeline.glossary import Sense
+
         s = Sense(id="j", surface="job", zh="任务", status="approved")
         ch = make_chunk()
         t = FakeTransport([anthropic_reply({b.id: "译" for b in ch.blocks})])
@@ -184,12 +199,18 @@ class TestRequestShape:
 
 # ------------------------------------------------------------ 重试
 
+
 class TestRetry:
     def test_retries_on_502_then_succeeds(self):
         ch = make_chunk()
         ok = anthropic_reply({b.id: "译" for b in ch.blocks})
-        t = FakeTransport([(502, {"error": {"message": "upstream"}}),
-                           (502, {"error": {"message": "upstream"}}), ok])
+        t = FakeTransport(
+            [
+                (502, {"error": {"message": "upstream"}}),
+                (502, {"error": {"message": "upstream"}}),
+                ok,
+            ]
+        )
         c = TranslationClient(CFG, transport=t, backoff_base=0)
         res = c.translate_chunk(ch, style_card="S", chapter_card="C", senses=[])
         assert res.attempts == 3
@@ -200,8 +221,7 @@ class TestRetry:
         ok = anthropic_reply({b.id: "译" for b in ch.blocks})
         t = FakeTransport([(429, {"error": {"message": "rate"}}), ok])
         c = TranslationClient(CFG, transport=t, backoff_base=0)
-        assert c.translate_chunk(ch, style_card="S", chapter_card="C",
-                                 senses=[]).attempts == 2
+        assert c.translate_chunk(ch, style_card="S", chapter_card="C", senses=[]).attempts == 2
 
     def test_does_not_retry_on_403(self):
         """鉴权/权限错误重试多少次都一样，只会拖慢发现问题的速度。"""
@@ -236,9 +256,18 @@ class TestRetry:
         assert len(t.calls) == 3
 
     def test_permanent_error_message_reaches_the_caller(self):
-        t = FakeTransport([(403, {"error": {"message":
-                                            "Upstream access forbidden, "
-                                            "please contact administrator"}})])
+        t = FakeTransport(
+            [
+                (
+                    403,
+                    {
+                        "error": {
+                            "message": "Upstream access forbidden, please contact administrator"
+                        }
+                    },
+                )
+            ]
+        )
         c = TranslationClient(CFG, transport=t, backoff_base=0)
         with pytest.raises(PermanentError) as e:
             c.translate_chunk(make_chunk(), style_card="S", chapter_card="C", senses=[])
@@ -246,6 +275,7 @@ class TestRetry:
 
 
 # ------------------------------------------------------------ 回包解析
+
 
 class TestResponseParsing:
     def test_parses_anthropic_reply(self):
@@ -258,8 +288,7 @@ class TestResponseParsing:
     def test_parses_openai_reply(self):
         ch = make_chunk()
         want = {b.id: f"译{i}" for i, b in enumerate(ch.blocks)}
-        cfg = ProviderConfig(base_url="https://x.ai", api_key="k",
-                             protocol="openai", model="m")
+        cfg = ProviderConfig(base_url="https://x.ai", api_key="k", protocol="openai", model="m")
         c = TranslationClient(cfg, transport=FakeTransport([openai_reply(want)]))
         res = c.translate_chunk(ch, style_card="S", chapter_card="C", senses=[])
         assert res.translations == want
@@ -268,15 +297,17 @@ class TestResponseParsing:
         """模型偶尔会在 JSON 前后加一句话。不该因此整块重跑。"""
         ch = make_chunk()
         want = {b.id: "译" for b in ch.blocks}
-        inner = json.dumps({"translations": [{"id": k, "zh": v}
-                                             for k, v in want.items()]},
-                           ensure_ascii=False)
-        payload = {"content": [{"type": "text",
-                                "text": f"好的，这是译文：\n```json\n{inner}\n```\n"}],
-                   "usage": {}}
+        inner = json.dumps(
+            {"translations": [{"id": k, "zh": v} for k, v in want.items()]}, ensure_ascii=False
+        )
+        payload = {
+            "content": [{"type": "text", "text": f"好的，这是译文：\n```json\n{inner}\n```\n"}],
+            "usage": {},
+        }
         c = TranslationClient(CFG, transport=FakeTransport([(200, payload)]))
-        assert c.translate_chunk(ch, style_card="S", chapter_card="C",
-                                 senses=[]).translations == want
+        assert (
+            c.translate_chunk(ch, style_card="S", chapter_card="C", senses=[]).translations == want
+        )
 
     def test_repairs_unescaped_ascii_quotes_inside_translation(self):
         """中转模型偶尔用英文引号包术语，却忘了按 JSON 规则转义。"""
@@ -318,16 +349,21 @@ class TestResponseParsing:
 
     def test_unparseable_reply_is_transient_not_a_crash(self):
         payload = {"content": [{"type": "text", "text": "抱歉我不明白"}], "usage": {}}
-        c = TranslationClient(CFG, transport=FakeTransport([(200, payload)] * 3),
-                              max_retries=3, backoff_base=0)
+        c = TranslationClient(
+            CFG, transport=FakeTransport([(200, payload)] * 3), max_retries=3, backoff_base=0
+        )
         with pytest.raises(TransientError):
             c.translate_chunk(make_chunk(), style_card="S", chapter_card="C", senses=[])
 
     def test_usage_is_captured(self):
         ch = make_chunk()
         m = {b.id: "译" for b in ch.blocks}
-        c = TranslationClient(CFG, transport=FakeTransport(
-            [anthropic_reply(m, usage={"input_tokens": 1234, "output_tokens": 567})]))
+        c = TranslationClient(
+            CFG,
+            transport=FakeTransport(
+                [anthropic_reply(m, usage={"input_tokens": 1234, "output_tokens": 567})]
+            ),
+        )
         res = c.translate_chunk(ch, style_card="S", chapter_card="C", senses=[])
         assert res.usage["input_tokens"] == 1234
         assert res.usage["output_tokens"] == 567

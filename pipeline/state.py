@@ -13,9 +13,11 @@ __all__ = [
     "ChunkProgress",
     "BuildState",
     "StaleBuildError",
-    "open_state", "load_state",
+    "open_state",
+    "load_state",
     "save_state",
     "append_translation",
+    "append_translation_batch",
     "load_translations",
 ]
 
@@ -118,14 +120,11 @@ class BuildState:
 def _load(path: Path) -> BuildState:
     raw = json.loads(path.read_text(encoding="utf-8"))
     if int(raw.get("schema_version", 0)) != SCHEMA_VERSION:
-        raise StaleBuildError(
-            f"{path} 的状态格式版本不兼容；请使用新的 build 目录。"
-        )
+        raise StaleBuildError(f"{path} 的状态格式版本不兼容；请使用新的 build 目录。")
     return BuildState(
         identity=BuildIdentity(**raw["identity"]),
         chunks={
-            str(cid): ChunkProgress.from_dict(item)
-            for cid, item in raw.get("chunks", {}).items()
+            str(cid): ChunkProgress.from_dict(item) for cid, item in raw.get("chunks", {}).items()
         },
         created_at=str(raw.get("created_at", "")),
         updated_at=str(raw.get("updated_at", "")),
@@ -152,9 +151,7 @@ def open_state(
                 for name in asdict(identity)
                 if getattr(state.identity, name) != getattr(identity, name)
             ]
-            raise StaleBuildError(
-                "构建身份已变化，不能复用旧状态：" + ", ".join(changed)
-            )
+            raise StaleBuildError("构建身份已变化，不能复用旧状态：" + ", ".join(changed))
         expected = {cid: tuple(ids) for cid, ids in chunk_blocks.items()}
         actual = {cid: item.block_ids for cid, item in state.chunks.items()}
         if actual != expected:
@@ -163,10 +160,7 @@ def open_state(
 
     state = BuildState(
         identity=identity,
-        chunks={
-            cid: ChunkProgress(block_ids=tuple(ids))
-            for cid, ids in chunk_blocks.items()
-        },
+        chunks={cid: ChunkProgress(block_ids=tuple(ids)) for cid, ids in chunk_blocks.items()},
     )
     save_state(state, p)
     return state
@@ -211,6 +205,32 @@ def append_translation(
         os.fsync(handle.fileno())
 
 
+def append_translation_batch(path, records: list[dict]) -> None:
+    """Atomically append a group of review records.
+
+    Review imports are validated as one transaction. Writing through a sibling
+    temporary file prevents a multi-chunk patch from being half-applied if the
+    process is interrupted.
+    """
+    if not records:
+        return
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(p.name + ".review.tmp")
+    existing = p.read_bytes() if p.exists() else b""
+    if existing and not existing.endswith(b"\n"):
+        existing += b"\n"
+    additions = "".join(json.dumps(record, ensure_ascii=False) + "\n" for record in records).encode(
+        "utf-8"
+    )
+    with tmp.open("wb") as handle:
+        handle.write(existing)
+        handle.write(additions)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(tmp, p)
+
+
 def load_translations(path) -> tuple[dict[str, str], dict[str, dict]]:
     """读取追加日志，返回合并译文和每个 chunk 的最后一条记录。"""
     p = Path(path)
@@ -230,8 +250,7 @@ def load_translations(path) -> tuple[dict[str, str], dict[str, dict]]:
         records[chunk_id] = record
     translations: dict[str, str] = {}
     for record in records.values():
-        translations.update({
-            str(block_id): str(zh)
-            for block_id, zh in (record.get("translations") or {}).items()
-        })
+        translations.update(
+            {str(block_id): str(zh) for block_id, zh in (record.get("translations") or {}).items()}
+        )
     return translations, records
