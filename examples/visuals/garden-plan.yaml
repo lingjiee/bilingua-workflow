@@ -1,0 +1,10 @@
+annotations:
+  images/garden-plan.png:
+    figure: Garden plan
+    summary_zh: 花园平面图示例；真实项目应逐项对照原图复核。
+    confidence: 高
+    labels:
+      - en: North
+        zh: 北
+      - en: Path
+        zh: 小径

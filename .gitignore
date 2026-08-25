@@ -1,0 +1,41 @@
+# Secrets and local provider configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python and test artifacts
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+*.egg-info/
+
+# Copyrighted/user-owned inputs and generated translations
+/source/
+*-images/
+/build/
+/build-*/
+/reviews/
+/reports/
+/glossary/
+
+# Book-specific local automation and logs
+/scripts/
+error.log
+.claude-english-buddy.json
+DESIGN.html
+pipeline/style-card-v1.md
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Keep repository-safe examples and generic code tracked.
+!examples/

@@ -1,0 +1,19 @@
+name: Feature request
+description: Propose a reusable workflow improvement.
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What reusable workflow problem should be solved?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Include safety, persistence, compatibility, and verification implications.
+    validations:
+      required: true

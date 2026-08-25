@@ -1,0 +1,10 @@
+senses:
+  - id: gardening.compost
+    surface: compost
+    zh: 堆肥
+    parent: gardening.soil_amendment
+    definition_zh: 经充分分解、用于改善土壤的有机材料。
+    evidence:
+      - sample-book/prepare-the-soil/<replace-after-inspect>
+    decision: 采用园艺领域通行译名。
+    status: candidate

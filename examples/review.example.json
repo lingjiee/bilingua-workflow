@@ -1,0 +1,11 @@
+{
+  "reviewer": "independent bilingual reviewer",
+  "chunks": [
+    {
+      "chunk_id": "choose-the-site/c01",
+      "translations": {
+        "sample-book/choose-the-site/<replace-with-real-block-id>": "观察场地七天。"
+      }
+    }
+  ]
+}
