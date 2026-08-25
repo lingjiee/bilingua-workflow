@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from .assemble import MISSING_MARK, _RAW_MARKUP, _heading_line, _quote, plain_translation
+from .assemble import _RAW_MARKUP, MISSING_MARK, _heading_line, _quote, plain_translation
 from .document import Document
 from .verify import Finding, VerificationReport
 
@@ -14,8 +14,8 @@ _CJK = re.compile(r"[\u3400-\u9fff]")
 _INLINE_TEXT_LINK = re.compile(r"(?<!!)\[[^\]]*\]\([^)]+\)")
 _UNEXPECTED_SCRIPT = re.compile(
     r"[\u0370-\u03ff\u1f00-\u1fff]"  # Greek
-    r"|[\u0400-\u052f]"              # Cyrillic
-    r"|[\u3040-\u30ff]"              # Hiragana / Katakana
+    r"|[\u0400-\u052f]"  # Cyrillic
+    r"|[\u3040-\u30ff]"  # Hiragana / Katakana
     r"|\ufffd"
 )
 # 这是高置信度的常用异体拦截表，不尝试把所有汉字都做自动简繁转换。
@@ -67,67 +67,83 @@ def verify_artifact(
         for index, token in enumerate(expected):
             pos = markdown.find(token, cursor)
             if pos < 0:
-                findings.append(_finding(
-                    block.id,
-                    "artifact.pairing",
-                    "成品缺少预期内容，或原文与译文的先后顺序被破坏。",
-                ))
+                findings.append(
+                    _finding(
+                        block.id,
+                        "artifact.pairing",
+                        "成品缺少预期内容，或原文与译文的先后顺序被破坏。",
+                    )
+                )
                 break
             if block.translatable and block.kind != "heading" and index == 1:
                 line_start = markdown.rfind("\n", 0, pos) + 1
                 if markdown[line_start:pos].lstrip().startswith(">"):
-                    findings.append(_finding(
-                        block.id,
-                        "artifact.translation_quote",
-                        "正文译文仍位于 Markdown 引用块中。",
-                    ))
+                    findings.append(
+                        _finding(
+                            block.id,
+                            "artifact.translation_quote",
+                            "正文译文仍位于 Markdown 引用块中。",
+                        )
+                    )
             cursor = pos + len(token)
 
         if not block.translatable or not zh:
             continue
         cleaned = plain_translation(zh) if block.kind != "heading" else zh
         if _UNEXPECTED_SCRIPT.search(cleaned):
-            findings.append(_finding(
-                block.id,
-                "artifact.foreign_script",
-                "译文中混入希腊/西里尔/日文字符或 Unicode 替换符。",
-            ))
+            findings.append(
+                _finding(
+                    block.id,
+                    "artifact.foreign_script",
+                    "译文中混入希腊/西里尔/日文字符或 Unicode 替换符。",
+                )
+            )
         trad = sorted(set(_COMMON_TRADITIONAL.findall(cleaned)))
         if trad:
-            findings.append(_finding(
-                block.id,
-                "artifact.traditional",
-                "简体稿中出现常用繁体字：" + "、".join(trad),
-            ))
+            findings.append(
+                _finding(
+                    block.id,
+                    "artifact.traditional",
+                    "简体稿中出现常用繁体字：" + "、".join(trad),
+                )
+            )
 
     for line_number, line in enumerate(markdown.splitlines(), start=1):
         if not line.startswith("#"):
             continue
         if not re.match(r"^#{1,6} [^#].+ · .+$", line):
-            findings.append(_finding(
-                "",
-                "artifact.heading",
-                f"第 {line_number} 行标题不符合“中文 · English”结构。",
-            ))
+            findings.append(
+                _finding(
+                    "",
+                    "artifact.heading",
+                    f"第 {line_number} 行标题不符合“中文 · English”结构。",
+                )
+            )
         if _INLINE_TEXT_LINK.search(line):
-            findings.append(_finding(
-                "",
-                "artifact.heading_link",
-                f"第 {line_number} 行标题仍含内部链接。",
-            ))
+            findings.append(
+                _finding(
+                    "",
+                    "artifact.heading_link",
+                    f"第 {line_number} 行标题仍含内部链接。",
+                )
+            )
         if _CJK.search(line) and re.match(r"^#{1,6}\s+#{1,6}\s+", line):
-            findings.append(_finding(
-                "",
-                "artifact.heading_prefix",
-                f"第 {line_number} 行标题含重复 Markdown 前缀。",
-            ))
+            findings.append(
+                _finding(
+                    "",
+                    "artifact.heading_prefix",
+                    f"第 {line_number} 行标题含重复 Markdown 前缀。",
+                )
+            )
 
     malformed_image = re.search(r"!(?!\[)(?:Images?|图像)\b", markdown, re.I)
     if malformed_image:
-        findings.append(_finding(
-            "",
-            "artifact.malformed_image",
-            "成品含被截断的 Markdown 图片字面量（例如 !Images）。",
-        ))
+        findings.append(
+            _finding(
+                "",
+                "artifact.malformed_image",
+                "成品含被截断的 Markdown 图片字面量（例如 !Images）。",
+            )
+        )
 
     return VerificationReport(chapter=chapter, findings=tuple(findings))

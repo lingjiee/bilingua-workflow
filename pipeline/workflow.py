@@ -11,12 +11,13 @@ from dataclasses import dataclass
 from functools import wraps
 from pathlib import Path
 
-from .assemble import AssemblyReport, assemble_book
 from .artifact_verify import verify_artifact
+from .assemble import AssemblyReport, assemble_book
 from .chunker import Chunk, chunk_document, summarize
-from .client import ChunkResult, ProviderConfig, TRANSLATE_SYSTEM, TranslationClient
+from .client import TRANSLATE_SYSTEM, ChunkResult, ProviderConfig, TranslationClient
 from .document import Document, load
 from .glossary import Sense, Snapshot
+from .review import write_review_context
 from .state import (
     BuildIdentity,
     StaleBuildError,
@@ -25,7 +26,14 @@ from .state import (
     open_state,
     save_state,
 )
-from .verify import VerificationReport, verify_chapter
+from .verify import (
+    Finding,
+    Severity,
+    VerificationReport,
+    harvest_translation_splits,
+    verify_chapter,
+    verify_corpus_consistency,
+)
 from .visuals import VisualAnnotation
 
 
@@ -88,6 +96,7 @@ def _single_process_build(func):
 
     return wrapped
 
+
 __all__ = ["BuildReport", "build_book", "write_chunk_manifest"]
 
 
@@ -100,10 +109,7 @@ def _sha256_text(text: str) -> str:
 
 
 def _chunk_plan(chunks: list[Chunk]) -> str:
-    payload = [
-        {"id": chunk.id, "block_ids": list(chunk.block_ids)}
-        for chunk in chunks
-    ]
+    payload = [{"id": chunk.id, "block_ids": list(chunk.block_ids)} for chunk in chunks]
     return _sha256_text(json.dumps(payload, sort_keys=True))
 
 
@@ -200,8 +206,10 @@ def build_book(
         missing = [chapter for chapter in requested if chapter not in available]
         if missing:
             raise ValueError(
-                "找不到指定章节：" + ", ".join(missing)
-                + "；可用章节：" + ", ".join(doc.chapter_slugs())
+                "找不到指定章节："
+                + ", ".join(missing)
+                + "；可用章节："
+                + ", ".join(doc.chapter_slugs())
             )
         selected = set(requested)
         doc = Document(
@@ -240,13 +248,20 @@ def build_book(
         identity,
         {chunk.id: chunk.block_ids for chunk in chunks},
     )
+    senses = list(snapshot.senses) if snapshot else []
+    write_review_context(
+        build_dir,
+        doc,
+        senses,
+        source_sha256=source_sha256,
+        glossary_version=identity.glossary_version,
+    )
     translations, records = load_translations(journal_path)
 
     unknown_records = set(records) - set(by_chunk)
     if unknown_records:
         raise StaleBuildError(
-            "translations.jsonl 含有当前计划之外的 chunk："
-            + ", ".join(sorted(unknown_records))
+            "translations.jsonl 含有当前计划之外的 chunk：" + ", ".join(sorted(unknown_records))
         )
     # 日志是结果真相。崩溃可能发生在 append_translation 与 save_state 之间：
     # 完整日志必须能把 pending/failed 状态自愈为 done，避免付费重复请求；
@@ -287,8 +302,7 @@ def build_book(
                     result = future.result()
                     if not result.is_complete:
                         raise RuntimeError(
-                            f"ID 集合不一致；missing={result.missing_ids}, "
-                            f"extra={result.extra_ids}"
+                            f"ID 集合不一致；missing={result.missing_ids}, extra={result.extra_ids}"
                         )
                     append_translation(
                         journal_path,
@@ -303,11 +317,70 @@ def build_book(
                 save_state(state, state_path)
 
     translations, records = load_translations(journal_path)
-    senses = list(snapshot.senses) if snapshot else []
     verification = [
-        verify_chapter(doc, chapter, translations, senses=senses)
-        for chapter in doc.chapter_slugs()
+        verify_chapter(doc, chapter, translations, senses=senses) for chapter in doc.chapter_slugs()
     ]
+    corpus_findings = list(
+        verify_corpus_consistency(
+            doc,
+            translations,
+            severity=Severity.ERROR,
+        ).findings
+    )
+    aligned = [
+        (block.text, translations.get(block.id, ""))
+        for block in doc.blocks
+        if block.translatable and translations.get(block.id, "").strip()
+    ]
+    known_surfaces = {form.casefold() for sense in senses for form in sense.source_forms}
+    known_translations: dict[str, tuple[str, ...]] = {}
+    for sense in senses:
+        rendered_forms = tuple(
+            dict.fromkeys(
+                value
+                for value in (
+                    sense.zh,
+                    *sense.aliases_zh,
+                    *sense.forbidden_zh,
+                    *sense.overrides,
+                )
+                if value
+            )
+        )
+        for form in sense.source_forms:
+            known_translations[form.casefold()] = rendered_forms
+    split_candidates = harvest_translation_splits(
+        aligned,
+        known_surfaces,
+        known_translations=known_translations,
+    )
+    # Keep every reliable frozen-term deviation, but cap heuristic unknown-term
+    # candidates so the report remains reviewable instead of becoming noise.
+    selected_splits = [item for item in split_candidates if item.known_surface] + [
+        item for item in split_candidates if not item.known_surface
+    ][:20]
+    for candidate in selected_splits:
+        variants = " / ".join(f"{token}×{count}" for token, count in candidate.variants)
+        examples = "；".join(example.replace("\n", " ")[:80] for example in candidate.examples)
+        known = "冻结术语" if candidate.known_surface else "候选术语"
+        corpus_findings.append(
+            Finding(
+                block_id="",
+                rule="consistency.translation_split",
+                detail=(
+                    f"{known} “{candidate.surface}” 在 "
+                    f"{candidate.source_block_count} 个原文块中出现候选分歧：{variants}。"
+                    + (f" 示例：{examples}" if examples else "")
+                ),
+                severity=Severity.WARNING,
+            )
+        )
+    verification.append(
+        VerificationReport(
+            chapter="corpus-consistency",
+            findings=tuple(corpus_findings),
+        )
+    )
     _write_verification(build_dir / "verify-report.md", verification)
 
     assembly_reports: list[AssemblyReport] = []

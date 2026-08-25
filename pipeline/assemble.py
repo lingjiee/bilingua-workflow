@@ -19,7 +19,10 @@ from .document import Block, Document
 from .visuals import VisualAnnotation, image_target
 
 __all__ = [
-    "AssemblyReport", "assemble_chapter", "assemble_book", "plain_translation",
+    "AssemblyReport",
+    "assemble_chapter",
+    "assemble_book",
+    "plain_translation",
 ]
 
 MISSING_MARK = "*（未译 · 待重跑）*"
@@ -42,8 +45,7 @@ class AssemblyReport:
 
 def _quote(text: str) -> str:
     """整块加引用前缀。多行块（列表、表格）每行都要加，否则渲染会断。"""
-    return "\n".join(f"> {line}" if line.strip() else ">"
-                     for line in text.split("\n"))
+    return "\n".join(f"> {line}" if line.strip() else ">" for line in text.split("\n"))
 
 
 def plain_translation(text: str) -> str:
@@ -52,10 +54,7 @@ def plain_translation(text: str) -> str:
     模型偶尔会照抄原文的 Markdown 引用前缀。逐行剥除前导 ``>``，包括
     空引用行和嵌套引用，避免中文在成品中被误渲染成英文引用块。
     """
-    return "\n".join(
-        re.sub(r"^\s*>+(?:\s?)(.*)$", r"\1", line)
-        for line in text.split("\n")
-    )
+    return "\n".join(re.sub(r"^\s*>+(?:\s?)(.*)$", r"\1", line) for line in text.split("\n"))
 
 
 # EPUB 抽出的标题常嵌着指向原书内部锚点的链接，如 `# [Title](#nav.xhtml_nch3)`。
@@ -164,8 +163,10 @@ def assemble_chapter(
 
     md = "\n\n".join(parts).rstrip() + "\n" if parts else ""
     return md, AssemblyReport(
-        chapter=chapter, written=written,
-        missing=tuple(missing), stale=stale,
+        chapter=chapter,
+        written=written,
+        missing=tuple(missing),
+        stale=stale,
     )
 
 

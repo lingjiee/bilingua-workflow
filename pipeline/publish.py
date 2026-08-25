@@ -78,9 +78,7 @@ def publish_book(
     """发布新目录。目标已存在时拒绝覆盖，避免静默破坏现有笔记。"""
     failed = [report.chapter for report in verification_reports if not report.ok]
     if failed:
-        raise PublicationBlockedError(
-            "以下章节校验未通过，禁止发布：" + ", ".join(failed)
-        )
+        raise PublicationBlockedError("以下章节校验未通过，禁止发布：" + ", ".join(failed))
     if not chapters:
         raise PublicationBlockedError("没有可发布的章节。")
 
@@ -89,9 +87,7 @@ def publish_book(
     safe_folder = _safe_component(folder_name, "译本")
     destination = root / safe_folder
     if destination.exists():
-        raise FileExistsError(
-            f"发布目标已存在：{destination}。为保护现有笔记，本版本不自动覆盖。"
-        )
+        raise FileExistsError(f"发布目标已存在：{destination}。为保护现有笔记，本版本不自动覆盖。")
 
     staging = root / f".bilingua-{safe_folder}-{uuid.uuid4().hex}.tmp"
     chapter_links: list[tuple[str, str]] = []

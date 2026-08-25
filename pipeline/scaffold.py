@@ -194,13 +194,19 @@ def inspect_project(root: str | Path, env_file: str | Path = ".env") -> DoctorRe
         checks.append(DoctorCheck(key, bool(value), detail))
     protocol = values.get("TRANSLATE_PROTOCOL", "anthropic")
     auth = values.get("TRANSLATE_AUTH", "bearer")
-    checks.extend([
-        DoctorCheck("protocol", protocol in {"anthropic", "openai"}, protocol),
-        DoctorCheck("auth", auth in {"bearer", "x-api-key"}, auth),
-        DoctorCheck("source directory", (project / "source").is_dir(), str(project / "source")),
-        DoctorCheck("glossary directory", (project / "glossary").is_dir(), str(project / "glossary")),
-        DoctorCheck("style card", (project / "style-card.md").is_file(), str(project / "style-card.md")),
-    ])
+    checks.extend(
+        [
+            DoctorCheck("protocol", protocol in {"anthropic", "openai"}, protocol),
+            DoctorCheck("auth", auth in {"bearer", "x-api-key"}, auth),
+            DoctorCheck("source directory", (project / "source").is_dir(), str(project / "source")),
+            DoctorCheck(
+                "glossary directory", (project / "glossary").is_dir(), str(project / "glossary")
+            ),
+            DoctorCheck(
+                "style card", (project / "style-card.md").is_file(), str(project / "style-card.md")
+            ),
+        ]
+    )
     gitignore = project / ".gitignore"
     ignored = gitignore.read_text(encoding="utf-8") if gitignore.is_file() else ""
     checks.append(DoctorCheck("secret ignore rule", ".env" in ignored, str(gitignore)))

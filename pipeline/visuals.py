@@ -57,11 +57,13 @@ class VisualAnnotation:
         ]
         if self.note_zh:
             lines.extend([">", f"> **读图说明：** {_cell(self.note_zh)}"])
-        lines.extend([
-            "",
-            "| English label | 中文对照 |",
-            "|---|---|",
-        ])
+        lines.extend(
+            [
+                "",
+                "| English label | 中文对照 |",
+                "|---|---|",
+            ]
+        )
         lines.extend(f"| {_cell(en)} | {_cell(zh)} |" for en, zh in self.labels)
         return "\n".join(lines)
 
@@ -89,9 +91,7 @@ def load_visual_annotations(path: str | Path) -> dict[str, VisualAnnotation]:
         note = str(item.get("note_zh", "")).strip()
         raw_labels = item.get("labels")
         if not figure or not summary or not isinstance(raw_labels, list) or not raw_labels:
-            raise ValueError(
-                f"视觉旁注必须包含 figure、summary_zh 和非空 labels：{image_path}"
-            )
+            raise ValueError(f"视觉旁注必须包含 figure、summary_zh 和非空 labels：{image_path}")
         if confidence not in {"高", "中", "低"}:
             raise ValueError(f"视觉旁注置信度只能是高/中/低：{image_path}")
 

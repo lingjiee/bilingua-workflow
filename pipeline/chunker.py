@@ -13,7 +13,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from .document import Block, Document
 
@@ -42,8 +42,10 @@ class Chunk:
 
     @property
     def estimated_output_tokens(self) -> int:
-        return int(self.word_count * OUTPUT_TOKENS_PER_WORD) + \
-            len(self.blocks) * PER_BLOCK_OVERHEAD_TOKENS
+        return (
+            int(self.word_count * OUTPUT_TOKENS_PER_WORD)
+            + len(self.blocks) * PER_BLOCK_OVERHEAD_TOKENS
+        )
 
     @property
     def block_ids(self) -> tuple[str, ...]:
@@ -150,8 +152,11 @@ def chunk_document(
     for chapter, chapter_blocks in _group_by_chapter(blocks):
         index = {b.id: i for i, b in enumerate(chapter_blocks)}
         pieces = _split_chapter(
-            chapter_blocks, target_words, max_words,
-            max_output_tokens, min_split_words,
+            chapter_blocks,
+            target_words,
+            max_words,
+            max_output_tokens,
+            min_split_words,
         )
         for n, (piece, oversized, warns) in enumerate(pieces, start=1):
             first_i = index[piece[0].id]
@@ -162,11 +167,9 @@ def chunk_document(
                     chapter=chapter,
                     blocks=tuple(piece),
                     # 上下文一律取自同章，跨章的前文对理解没有帮助只有干扰
-                    prev_context=tuple(
-                        chapter_blocks[max(0, first_i - context_blocks):first_i]
-                    ),
+                    prev_context=tuple(chapter_blocks[max(0, first_i - context_blocks) : first_i]),
                     # 后文只给一块，用途仅是消解指代歧义
-                    next_context=tuple(chapter_blocks[last_i + 1:last_i + 2]),
+                    next_context=tuple(chapter_blocks[last_i + 1 : last_i + 2]),
                     oversized=oversized,
                     warnings=tuple(warns),
                 )

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from pipeline.document import parse_markdown
+from pipeline.document import Block, parse_markdown
 from pipeline.glossary import Sense
 from pipeline.verify import Severity, verify_block, verify_chapter
 
@@ -27,6 +27,7 @@ def rules(findings) -> set[str]:
 
 
 # ---------------------------------------------------------------- 数字
+
 
 class TestNumbers:
     def test_missing_number_is_flagged(self):
@@ -121,6 +122,7 @@ class TestNumbers:
 
 # ---------------------------------------------------------------- 标记
 
+
 class TestMarkup:
     def test_lost_footnote_marker_is_flagged(self):
         b = block("This claim rests on prior work.[12]")
@@ -136,8 +138,7 @@ class TestMarkup:
 
     def test_kept_link_target_passes(self):
         b = block("See [the report](https://example.com/r) for details.")
-        assert "markup" not in rules(
-            verify_block(b, "详见[报告](https://example.com/r)。"))
+        assert "markup" not in rules(verify_block(b, "详见[报告](https://example.com/r)。"))
 
     def test_heading_internal_anchor_is_intentionally_dropped(self):
         b = block("# [Chapter One](#nav.xhtml_nch1)", kind="heading")
@@ -156,6 +157,7 @@ class TestMarkup:
 
 # ---------------------------------------------------------------- 术语
 
+
 class TestGlossary:
     JOB = Sense(id="j", surface="job", zh="任务", status="approved")
 
@@ -170,20 +172,19 @@ class TestGlossary:
         assert "glossary" not in rules(f)
 
     def test_alias_is_for_search_not_an_accepted_build_translation(self):
-        s = Sense(id="j", surface="job", zh="任务",
-                  aliases_zh=("差事",), status="approved")
+        s = Sense(id="j", surface="job", zh="任务", aliases_zh=("差事",), status="approved")
         b = block("The job to be done.")
         assert "glossary" in rules(verify_block(b, "这件差事要完成。", senses=[s]))
 
     def test_term_absent_from_source_is_not_required(self):
         b = block("Nothing about that concept here.")
-        assert "glossary" not in rules(
-            verify_block(b, "这里没提那个概念。", senses=[self.JOB]))
+        assert "glossary" not in rules(verify_block(b, "这里没提那个概念。", senses=[self.JOB]))
 
     def test_glossary_finding_names_the_term(self):
         b = block("The customer has a job.")
-        f = [x for x in verify_block(b, "顾客有件差事。", senses=[self.JOB])
-             if x.rule == "glossary"]
+        f = [
+            x for x in verify_block(b, "顾客有件差事。", senses=[self.JOB]) if x.rule == "glossary"
+        ]
         assert f and "job" in f[0].detail and "任务" in f[0].detail
 
     def test_fire_metaphor_does_not_match_forest_fires(self):
@@ -200,7 +201,9 @@ class TestGlossary:
 
     def test_chinese_quotes_may_wrap_model_name_before_suffix(self):
         sense = Sense(
-            id="model", surface="Jobs-As-Progress", zh="任务即进展模型",
+            id="model",
+            surface="Jobs-As-Progress",
+            zh="任务即进展模型",
             status="approved",
         )
         b = block("Jobs-As-Progress is descriptive.")
@@ -209,7 +212,9 @@ class TestGlossary:
 
     def test_model_name_may_omit_redundant_model_suffix_in_prose(self):
         sense = Sense(
-            id="model", surface="Jobs-As-Progress", zh="任务即进展模型",
+            id="model",
+            surface="Jobs-As-Progress",
+            zh="任务即进展模型",
             status="approved",
         )
         b = block("Jobs-As-Progress is a theory.")
@@ -218,7 +223,9 @@ class TestGlossary:
 
     def test_book_title_does_not_trigger_jobs_term(self):
         sense = Sense(
-            id="jtbd", surface="Jobs to be Done", zh="待办任务",
+            id="jtbd",
+            surface="Jobs to be Done",
+            zh="待办任务",
             status="approved",
         )
         b = block("The Jobs to be Done Handbook describes an interview method.")
@@ -226,9 +233,7 @@ class TestGlossary:
         assert "glossary" not in rules(f)
 
     def test_customer_in_named_research_method_is_not_generic_customer(self):
-        sense = Sense(
-            id="customer", surface="customer", zh="客户", status="approved"
-        )
+        sense = Sense(id="customer", surface="customer", zh="客户", status="approved")
         b = block("She promotes Customer Case Research instead.")
         f = verify_block(b, "她转而推广 Customer Case Research。", senses=[sense])
         assert "glossary" not in rules(f)
@@ -243,9 +248,7 @@ class TestGlossary:
         assert "glossary" not in rules(verify_block(block(source), zh, senses=senses))
 
     def test_bibliography_entry_may_remain_english(self):
-        senses = [
-            Sense(id="customer", surface="customer", zh="客户", status="approved")
-        ]
+        senses = [Sense(id="customer", surface="customer", zh="客户", status="approved")]
         b = block(
             "Ulwick, A. W. (2005). What customers want: Using outcome-driven "
             "innovation to create breakthrough products and services. McGraw-Hill."
@@ -257,12 +260,12 @@ class TestGlossary:
     @pytest.mark.parametrize(
         "source",
         [
-            'Bob Moesta, “Bob Moesta on Jobs-to-be-Done,” interview by Des Traynor.',
-            'Anthony W. Ulwick, “Turn Customer Input into Innovation,” '
-            '*Harvard Business Review* (January 2002).',
-            'Anthony W. Ulwick and Lance A. Bettencourt, '
-            '“Giving Customers a Fair Hearing,” *MIT Sloan Management Review* '
-            '(Spring 2008).',
+            "Bob Moesta, “Bob Moesta on Jobs-to-be-Done,” interview by Des Traynor.",
+            "Anthony W. Ulwick, “Turn Customer Input into Innovation,” "
+            "*Harvard Business Review* (January 2002).",
+            "Anthony W. Ulwick and Lance A. Bettencourt, "
+            "“Giving Customers a Fair Hearing,” *MIT Sloan Management Review* "
+            "(Spring 2008).",
         ],
     )
     def test_author_first_citation_title_does_not_trigger_glossary(self, source):
@@ -419,13 +422,14 @@ class TestGlossary:
             ("Tools doctors need to do their job well.", "医生做好工作所需的工具。"),
             ("He had visited many times in the course of his job.", "因工作关系，他来过许多次。"),
             ("The reorganization changed job responsibilities.", "重组改变了岗位职责。"),
-            ("A proxy for how well the manager is doing his job.", "衡量管理者工作表现的替代指标。"),
+            (
+                "A proxy for how well the manager is doing his job.",
+                "衡量管理者工作表现的替代指标。",
+            ),
         ],
     )
     def test_occupational_job_is_not_jtbd(self, source, translation):
-        assert "glossary" not in rules(
-            verify_block(block(source), translation, senses=[self.JOB])
-        )
+        assert "glossary" not in rules(verify_block(block(source), translation, senses=[self.JOB]))
 
     def test_hiring_a_person_is_literal_employment(self):
         sense = Sense(id="h", surface="hire", zh="雇用", status="approved")
@@ -490,9 +494,7 @@ class TestGlossary:
         assert "glossary" not in rules(f)
 
     def test_glossary_term_inside_preserved_endnote_title_is_not_required(self):
-        sense = Sense(
-            id="di", surface="disruptive innovation", zh="颠覆性创新", status="approved"
-        )
+        sense = Sense(id="di", surface="disruptive innovation", zh="颠覆性创新", status="approved")
         source = (
             "[1.](#endnote_1) 这里是中文可译的说明。Smith, Jane. "
             "*How Disruptive Innovation Changes Markets*. Boston, 2012."
@@ -504,19 +506,16 @@ class TestGlossary:
         assert "glossary" not in rules(verify_block(block(source), zh, senses=[sense]))
 
     def test_glossary_term_inside_nested_bracket_endnote_title_is_not_required(self):
-        sense = Sense(
-            id="customer", surface="customer", zh="客户", status="approved"
-        )
+        sense = Sense(id="customer", surface="customer", zh="客户", status="approved")
         source = (
             r"[\[10\]](#part0000_split_013.html__ednref10) Steve Blank, "
-            '“First Contact with a Customer,” http://example.test.'
+            "“First Contact with a Customer,” http://example.test."
         )
-        assert "glossary" not in rules(
-            verify_block(block(source), source, senses=[sense])
-        )
+        assert "glossary" not in rules(verify_block(block(source), source, senses=[sense]))
 
 
 # ---------------------------------------------------------------- 译文本身
+
 
 class TestTranslationSanity:
     def test_empty_translation_is_an_error(self):
@@ -531,8 +530,10 @@ class TestTranslationSanity:
     def test_untranslated_english_echo_is_flagged(self):
         """模型偶尔直接回抄英文。人眼扫过去像是"还没翻到"，
         但它已经占了那个 id，不校验就永远发现不了。"""
-        text = ("This is a long English paragraph that the model simply echoed "
-                "back instead of translating it into Chinese as instructed.")
+        text = (
+            "This is a long English paragraph that the model simply echoed "
+            "back instead of translating it into Chinese as instructed."
+        )
         b = block(text)
         assert "residual_en" in rules(verify_block(b, text))
 
@@ -574,9 +575,10 @@ class TestTranslationSanity:
         assert "suspicious_short" not in got
 
     def test_long_acknowledgement_name_list_is_not_suspiciously_short(self):
-        source = ", ".join(
-            f"Person{index} Family{index}" for index in range(30)
-        ) + ", and the rest of the Example team."
+        source = (
+            ", ".join(f"Person{index} Family{index}" for index in range(30))
+            + ", and the rest of the Example team."
+        )
         zh = source.replace(", and the rest", "，以及其余")
         assert "suspicious_short" not in rules(verify_block(block(source), zh))
 
@@ -617,21 +619,19 @@ class TestTranslationSanity:
 
     def test_thinking_tag_leak_is_flagged(self):
         b = block("Some prose.")
-        assert "tag_leak" in rules(
-            verify_block(b, "<thinking>让我想想</thinking>一些散文。"))
+        assert "tag_leak" in rules(verify_block(b, "<thinking>让我想想</thinking>一些散文。"))
 
     def test_json_fragment_leak_is_flagged(self):
         b = block("Some prose.")
-        assert "tag_leak" in rules(
-            verify_block(b, '{"id": "t/c/§ab", "zh": "一些散文。"}'))
+        assert "tag_leak" in rules(verify_block(b, '{"id": "t/c/§ab", "zh": "一些散文。"}'))
 
 
 # ---------------------------------------------------------------- 整章
 
+
 class TestChapterVerification:
     def test_reports_per_block_findings(self):
-        doc = parse_markdown("# C\n\nIn 1999 things changed.\n\nMore prose.\n",
-                             book_slug="t")
+        doc = parse_markdown("# C\n\nIn 1999 things changed.\n\nMore prose.\n", book_slug="t")
         blocks = [b for b in doc.translatable_blocks() if b.kind == "para"]
         t = {blocks[0].id: "有些事变了。", blocks[1].id: "更多散文。"}
         t.update({b.id: "章" for b in doc.translatable_blocks() if b.kind == "heading"})
@@ -654,7 +654,7 @@ class TestChapterVerification:
         doc = parse_markdown("# C\n\nIn 1999 things changed.\n", book_slug="t")
         para = next(b for b in doc.translatable_blocks() if b.kind == "para")
         t = {b.id: "章" for b in doc.translatable_blocks()}
-        t[para.id] = ""              # error
+        t[para.id] = ""  # error
         rep = verify_chapter(doc, doc.chapter_slugs()[0], t)
         assert para.id in rep.blocks_to_retry
 
@@ -674,27 +674,31 @@ class TestChapterVerification:
 
 # ---------------------------------------------------------------- 兜底
 
+
 class TestCandidateHarvest:
     def test_repeated_capitalised_phrase_becomes_a_candidate(self):
         """设计里补 Codex 的那个洞：自动抽取没识别出来的术语，
         既不是新词也不冲突也没分歧，永远进不了人工视野。
         翻译时撞见高频名词短语就记账。"""
         from pipeline.verify import harvest_candidates
+
         texts = ["The Forces of Progress shape the decision."] * 4
         got = harvest_candidates(texts, known_surfaces=set(), min_count=3)
         assert any("Forces of Progress" in c for c in got)
 
     def test_known_terms_are_not_harvested(self):
         from pipeline.verify import harvest_candidates
+
         texts = ["The Forces of Progress shape the decision."] * 4
-        got = harvest_candidates(texts, known_surfaces={"forces of progress"},
-                                 min_count=3)
+        got = harvest_candidates(texts, known_surfaces={"forces of progress"}, min_count=3)
         assert not any("Forces of Progress" in c for c in got)
 
     def test_rare_phrase_is_not_harvested(self):
         from pipeline.verify import harvest_candidates
-        got = harvest_candidates(["The Forces of Progress matter."],
-                                 known_surfaces=set(), min_count=3)
+
+        got = harvest_candidates(
+            ["The Forces of Progress matter."], known_surfaces=set(), min_count=3
+        )
         assert got == []
 
 
@@ -721,7 +725,94 @@ class TestTranslationSplitHarvest:
             for i in range(12)
         ]
         got = harvest_translation_splits(
-            aligned, known_surfaces={"customer"}, min_source_blocks=12,
+            aligned,
+            known_surfaces={"customer"},
+            min_source_blocks=12,
             min_variant_blocks=4,
+            known_translations={"customer": ("客户", "顾客")},
         )
-        assert not any(item.surface == "customer" for item in got)
+        customer = next(item for item in got if item.surface == "customer")
+        assert customer.known_surface
+
+    def test_known_surface_keeps_single_outlier_and_more_than_two_variants(self):
+        from pipeline.verify import harvest_translation_splits
+
+        translations = ["这是成为目标。"] * 24 + ["这是存在目标。"] + ["这是达成目标。"] * 4
+        aligned = [("The goal shapes progress.", zh) for zh in translations]
+        got = harvest_translation_splits(
+            aligned,
+            known_surfaces={"goal"},
+            known_translations={"goal": ("成为目标", "存在目标", "达成目标")},
+            min_source_blocks=12,
+            min_variant_blocks=4,
+            min_known_variant_blocks=1,
+            max_variants=5,
+        )
+        goal = next(item for item in got if item.surface == "goal")
+        assert goal.known_surface
+        assert len(goal.variants) >= 3
+
+
+def test_mixed_script_inside_english_term_is_rejected():
+    b = block("We created Customer Job Theory (JTBD).")
+    sense = Sense(id="job", surface="job", zh="任务", status="approved")
+    findings = verify_block(
+        b,
+        "我们创立了 Customer 任务 Theory（JTBD）。",
+        senses=[sense],
+    )
+    assert "mixed_script_term" in rules(findings)
+
+
+def test_parenthetical_mixed_term_is_rejected_without_glossary_alias():
+    b = block("We created Customer Job Theory (JTBD).")
+    findings = verify_block(b, "我们创立了客户任务理论（Customer 任务 Theory，JTBD）。")
+    assert "mixed_script_term" in rules(findings)
+
+
+def test_normal_latin_names_joined_by_chinese_are_not_mixed_terms():
+    b = block("Dan and Clarity built it together.")
+    sense = Sense(id="job", surface="job", zh="任务", status="approved")
+    findings = verify_block(b, "Dan 与 Clarity 共同打造了它。", senses=[sense])
+    assert "mixed_script_term" not in rules(findings)
+
+
+def test_parenthetical_chinese_clause_between_names_is_not_a_mixed_term():
+    b = block("Dan sold it to Fundable in 2015.")
+    findings = verify_block(b, "这笔交易随后完成了（Dan 把它卖给了 Fundable）。")
+    assert "mixed_script_term" not in rules(findings)
+
+
+def test_surface_alias_and_forbidden_translation_are_enforced():
+    sense = Sense(
+        id="play",
+        surface="Jobs to Be Done play",
+        surface_aliases=("JTBD play", "PLAY"),
+        zh="实战方法",
+        forbidden_zh=("打法", "玩法"),
+        status="approved",
+    )
+    source = "**PLAY** **Conduct Jobs Interviews**"
+    findings = verify_block(block(source), "**打法** **开展任务访谈**", [sense])
+    assert "glossary" in rules(findings)
+    assert "glossary.forbidden" in rules(findings)
+
+
+def test_duplicate_source_translation_inconsistency_is_reported():
+    from pipeline.document import Document
+    from pipeline.verify import verify_corpus_consistency
+
+    first = block("LEARN MORE ABOUT THIS PLAY")
+    second = Block(
+        kind=first.kind,
+        text=first.text,
+        chapter="two",
+        id="book/two/§2",
+    )
+    doc = Document(book_slug="book", blocks=[first, second])
+    report = verify_corpus_consistency(
+        doc,
+        {first.id: "深入了解这一实战方法", second.id: "深入了解这一招"},
+    )
+    assert not report.ok
+    assert report.findings[0].rule == "consistency.duplicate_source"

@@ -57,6 +57,8 @@ bilingua inspect source/book.md --book-slug book
 术语采用 global / domain / book 三层义项模型。每条批准义项至少应有：
 
 - 稳定 ID、英文 surface、中文首选译名；
+- 可选的 `surface_aliases`（英文短形、缩写、排版变体）；
+- 可选的 `forbidden_zh`（已确认不得用于该义项的竞争译名）；
 - 作者或适用范围；
 - 中文定义；
 - 至少一个原书段落 ID 作为 evidence；
@@ -101,7 +103,14 @@ bilingua freeze-glossary \
 bilingua apply-review --build-dir build-main/book --input reviews/round-1.json
 ```
 
-补丁必须带 reviewer，按 chunk 和段落 ID 定位。导入后重跑同一构建命令，完成零 API 重校验与重装配。
+补丁必须带 reviewer，按 chunk 和段落 ID 定位。构建阶段生成的
+`review-context.json` 与源文件哈希、冻结术语版本绑定；缺失或身份不一致时拒绝导入。
+整份补丁会先在内存中合并，逐块校验全部通过后才一次性追加到译文日志，因而不会
+留下“前几个 chunk 已写入、后一个 chunk 失败”的半完成状态。完全相同的英文块
+出现不同译文时按错误阻断；启发式高频术语候选写入 `review-verify-report.md`，
+供人工判断，不自动改写译文。
+
+导入后重跑同一构建命令，完成零 API 重校验与重装配。
 
 通过条件：装配前错误、装配缺漏、成品复检错误均为 0；高风险项目由第二人抽查。
 

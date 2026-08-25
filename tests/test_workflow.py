@@ -12,7 +12,6 @@ from pipeline.workflow import (
     build_book,
 )
 
-
 CFG = ProviderConfig(
     base_url="https://relay.example",
     api_key="secret",
@@ -47,8 +46,13 @@ def source_file(tmp_path):
 def test_build_runs_translate_verify_assemble_and_records_state(tmp_path):
     client = FakeClient()
     report = build_book(
-        source_file(tmp_path), tmp_path / "build", CFG, "style-v1",
-        book_slug="book", client=client, target_words=1000,
+        source_file(tmp_path),
+        tmp_path / "build",
+        CFG,
+        "style-v1",
+        book_slug="book",
+        client=client,
+        target_words=1000,
     )
     assert report.ok
     assert report.completed_chunks == report.chunk_count == 1
@@ -63,18 +67,39 @@ def test_build_runs_translate_verify_assemble_and_records_state(tmp_path):
 def test_completed_build_resumes_without_calling_api(tmp_path):
     source = source_file(tmp_path)
     build_root = tmp_path / "build"
-    build_book(source, build_root, CFG, "style-v1", book_slug="book",
-               client=FakeClient(), target_words=1000)
-    report = build_book(source, build_root, CFG, "style-v1", book_slug="book",
-                        client=MustNotCall(), target_words=1000)
+    build_book(
+        source,
+        build_root,
+        CFG,
+        "style-v1",
+        book_slug="book",
+        client=FakeClient(),
+        target_words=1000,
+    )
+    report = build_book(
+        source,
+        build_root,
+        CFG,
+        "style-v1",
+        book_slug="book",
+        client=MustNotCall(),
+        target_words=1000,
+    )
     assert report.ok
 
 
 def test_complete_journal_repairs_pending_state_without_duplicate_api_call(tmp_path):
     source = source_file(tmp_path)
     build_root = tmp_path / "build"
-    first = build_book(source, build_root, CFG, "style-v1", book_slug="book",
-                       client=FakeClient(), target_words=1000)
+    first = build_book(
+        source,
+        build_root,
+        CFG,
+        "style-v1",
+        book_slug="book",
+        client=FakeClient(),
+        target_words=1000,
+    )
     state_path = first.build_dir / "state.json"
     state = json.loads(state_path.read_text(encoding="utf-8"))
     state["chunks"]["chapter-one/c01"].update(
@@ -82,8 +107,15 @@ def test_complete_journal_repairs_pending_state_without_duplicate_api_call(tmp_p
     )
     state_path.write_text(json.dumps(state), encoding="utf-8")
 
-    resumed = build_book(source, build_root, CFG, "style-v1", book_slug="book",
-                         client=MustNotCall(), target_words=1000)
+    resumed = build_book(
+        source,
+        build_root,
+        CFG,
+        "style-v1",
+        book_slug="book",
+        client=MustNotCall(),
+        target_words=1000,
+    )
 
     assert resumed.ok
     assert resumed.completed_chunks == 1
@@ -95,18 +127,39 @@ def test_second_process_is_refused_while_build_root_is_locked(tmp_path):
     build_root = tmp_path / "build"
     with _exclusive_build_lock(build_root / ".bilingua-build.lock"):
         with pytest.raises(BuildAlreadyRunning, match="已有构建进程"):
-            build_book(source_file(tmp_path), build_root, CFG, "style-v1",
-                       book_slug="book", client=FakeClient(), target_words=1000)
+            build_book(
+                source_file(tmp_path),
+                build_root,
+                CFG,
+                "style-v1",
+                book_slug="book",
+                client=FakeClient(),
+                target_words=1000,
+            )
 
 
 def test_changed_style_refuses_to_mix_with_old_results(tmp_path):
     source = source_file(tmp_path)
     build_root = tmp_path / "build"
-    build_book(source, build_root, CFG, "style-v1", book_slug="book",
-               client=FakeClient(), target_words=1000)
+    build_book(
+        source,
+        build_root,
+        CFG,
+        "style-v1",
+        book_slug="book",
+        client=FakeClient(),
+        target_words=1000,
+    )
     with pytest.raises(StaleBuildError, match="style_version"):
-        build_book(source, build_root, CFG, "style-v2", book_slug="book",
-                   client=FakeClient(), target_words=1000)
+        build_book(
+            source,
+            build_root,
+            CFG,
+            "style-v2",
+            book_slug="book",
+            client=FakeClient(),
+            target_words=1000,
+        )
 
 
 def test_failed_chunk_blocks_assembly_and_remains_retryable(tmp_path):
@@ -115,8 +168,13 @@ def test_failed_chunk_blocks_assembly_and_remains_retryable(tmp_path):
             raise RuntimeError("upstream down")
 
     report = build_book(
-        source_file(tmp_path), tmp_path / "build", CFG, "style-v1",
-        book_slug="book", client=FailingClient(), target_words=1000,
+        source_file(tmp_path),
+        tmp_path / "build",
+        CFG,
+        "style-v1",
+        book_slug="book",
+        client=FailingClient(),
+        target_words=1000,
     )
     assert not report.ok
     assert report.completed_chunks == 0
@@ -126,8 +184,7 @@ def test_failed_chunk_blocks_assembly_and_remains_retryable(tmp_path):
 def test_build_can_select_one_acceptance_chapter(tmp_path):
     source = tmp_path / "book.md"
     source.write_text(
-        "# Chapter One\n\nFirst chapter prose.\n\n"
-        "# Chapter Two\n\nSecond chapter prose.\n",
+        "# Chapter One\n\nFirst chapter prose.\n\n# Chapter Two\n\nSecond chapter prose.\n",
         encoding="utf-8",
     )
     client = FakeClient()

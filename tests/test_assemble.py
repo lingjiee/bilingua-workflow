@@ -47,6 +47,7 @@ def full(doc):
 
 # ------------------------------------------------------------ 原文来源
 
+
 class TestProvenance:
     def test_every_source_text_appears_verbatim(self, doc, full):
         md, _ = assemble_chapter(doc, "chapter-one", full)
@@ -68,8 +69,9 @@ class TestProvenance:
     def test_translation_is_placed_under_its_own_original(self, doc):
         t = {b.id: f"ZH-{i}" for i, b in enumerate(doc.translatable_blocks())}
         md, _ = assemble_chapter(doc, "chapter-one", t)
-        blocks = [b for b in doc.translatable_blocks()
-                  if b.chapter == "chapter-one" and b.kind == "para"]
+        blocks = [
+            b for b in doc.translatable_blocks() if b.chapter == "chapter-one" and b.kind == "para"
+        ]
         for b in blocks:
             zh = t[b.id]
             first_line = b.text.split("\n")[0].strip()
@@ -78,6 +80,7 @@ class TestProvenance:
 
 # ------------------------------------------------------------ 排版
 
+
 class TestLayout:
     def test_original_is_blockquoted(self, doc, full):
         md, _ = assemble_chapter(doc, "chapter-one", full)
@@ -85,7 +88,9 @@ class TestLayout:
 
     def test_translation_is_plain_text(self, doc, full):
         md, _ = assemble_chapter(doc, "chapter-one", full)
-        line = next(l for l in md.split("\n") if l.startswith("【译】First"))
+        line = next(
+            candidate for candidate in md.split("\n") if candidate.startswith("【译】First")
+        )
         assert not line.startswith(">")
 
     def test_model_quote_prefix_is_removed_from_body_translation(self):
@@ -107,13 +112,13 @@ class TestLayout:
 
     def test_heading_keeps_its_level(self, doc, full):
         md, _ = assemble_chapter(doc, "chapter-one", full)
-        assert any(l.startswith("# ") for l in md.split("\n"))
+        assert any(candidate.startswith("# ") for candidate in md.split("\n"))
 
     def test_heading_carries_both_languages(self, doc):
         t = {b.id: "第一章" for b in doc.translatable_blocks() if b.kind == "heading"}
         t.update({b.id: "译" for b in doc.translatable_blocks() if b.kind != "heading"})
         md, _ = assemble_chapter(doc, "chapter-one", t)
-        head = next(l for l in md.split("\n") if l.startswith("# "))
+        head = next(candidate for candidate in md.split("\n") if candidate.startswith("# "))
         assert "第一章" in head and "Chapter One" in head
 
     def test_images_pass_through_unchanged(self, doc, full):
@@ -168,18 +173,21 @@ class TestLayout:
 
 # ------------------------------------------------------------ 缺漏
 
+
 class TestMissing:
     def test_missing_translation_is_reported(self, doc, full):
-        one = next(b for b in doc.translatable_blocks()
-                   if b.chapter == "chapter-one" and b.kind == "para")
+        one = next(
+            b for b in doc.translatable_blocks() if b.chapter == "chapter-one" and b.kind == "para"
+        )
         partial = {k: v for k, v in full.items() if k != one.id}
         _, rep = assemble_chapter(doc, "chapter-one", partial)
         assert one.id in rep.missing
 
     def test_missing_translation_keeps_english_and_marks_it(self, doc, full):
         """漏译不能静默跳过——原文要留着，并且要留下可见标记。"""
-        one = next(b for b in doc.translatable_blocks()
-                   if b.chapter == "chapter-one" and b.kind == "para")
+        one = next(
+            b for b in doc.translatable_blocks() if b.chapter == "chapter-one" and b.kind == "para"
+        )
         partial = {k: v for k, v in full.items() if k != one.id}
         md, _ = assemble_chapter(doc, "chapter-one", partial)
         assert one.text.split("\n")[0] in md
@@ -191,14 +199,16 @@ class TestMissing:
         assert rep.missing == ()
 
     def test_empty_translation_counts_as_missing(self, doc, full):
-        one = next(b for b in doc.translatable_blocks()
-                   if b.chapter == "chapter-one" and b.kind == "para")
+        one = next(
+            b for b in doc.translatable_blocks() if b.chapter == "chapter-one" and b.kind == "para"
+        )
         t = dict(full, **{one.id: "   "})
         _, rep = assemble_chapter(doc, "chapter-one", t)
         assert one.id in rep.missing
 
 
 # ------------------------------------------------------------ 整本
+
 
 class TestBook:
     def test_assembles_each_chapter_separately(self, doc, full):
@@ -222,9 +232,11 @@ class TestTableOfContents:
     def test_stale_english_toc_is_dropped(self):
         """book2md 会生成一份指向英文锚点的目录。翻译后锚点全变了，
         原样带过去就是一堆死链——必须丢掉，由发布环节重建。"""
-        src = ("# Book\n\n## 目录\n\n"
-               "- [Chapter One](#chapter-one)\n- [Chapter Two](#chapter-two)\n\n"
-               "# Chapter One\n\nSome prose.\n")
+        src = (
+            "# Book\n\n## 目录\n\n"
+            "- [Chapter One](#chapter-one)\n- [Chapter Two](#chapter-two)\n\n"
+            "# Chapter One\n\nSome prose.\n"
+        )
         doc = parse_markdown(src, book_slug="t")
         t = {b.id: "译" for b in doc.translatable_blocks()}
         md, _ = assemble_chapter(doc, "book", t)
@@ -238,25 +250,22 @@ class TestHeadingCleanup:
     def test_link_markup_is_stripped_from_headings(self):
         src = "# [Chapter 1 The Opening](#nav.xhtml_nch3)\n\nSome prose.\n"
         doc = parse_markdown(src, book_slug="t")
-        t = {b.id: "第一章" if b.kind == "heading" else "译"
-             for b in doc.translatable_blocks()}
+        t = {b.id: "第一章" if b.kind == "heading" else "译" for b in doc.translatable_blocks()}
         md, _ = assemble_chapter(doc, doc.chapter_slugs()[0], t)
-        head = next(l for l in md.split("\n") if l.startswith("# "))
+        head = next(candidate for candidate in md.split("\n") if candidate.startswith("# "))
         assert "nav.xhtml" not in head
         assert "](" not in head
         assert "Chapter 1 The Opening" in head
         assert "第一章" in head
 
     def test_inline_heading_image_is_preserved_once_without_broken_literal(self):
-        source = (
-            "# Book\n\n"
-            "### **PLAY** ![Images](images/arrow1.jpg) **Conduct Interviews**\n"
-        )
+        source = "# Book\n\n### **PLAY** ![Images](images/arrow1.jpg) **Conduct Interviews**\n"
         doc = parse_markdown(source, book_slug="t")
         translations = {
             block.id: (
                 "**实战方法** ![Images](images/arrow1.jpg) **开展访谈**"
-                if block.level == 3 else "书名"
+                if block.level == 3
+                else "书名"
             )
             for block in doc.translatable_blocks()
         }
@@ -267,7 +276,7 @@ class TestHeadingCleanup:
         assert "**实战方法** **开展访谈**" in heading
 
     def test_raw_svg_wrapper_is_preserved_once_without_translation_echo(self):
-        source = "# Book\n\n<svg viewBox=\"0 0 10 10\">\n\n</svg>\n"
+        source = '# Book\n\n<svg viewBox="0 0 10 10">\n\n</svg>\n'
         doc = parse_markdown(source, book_slug="t")
         translations = {
             block.id: ("书名" if block.kind == "heading" else block.text)
@@ -275,35 +284,32 @@ class TestHeadingCleanup:
         }
         markdown, report = assemble_chapter(doc, "book", translations)
         assert report.ok
-        assert markdown.count("<svg viewBox=\"0 0 10 10\">") == 1
+        assert markdown.count('<svg viewBox="0 0 10 10">') == 1
         assert markdown.count("</svg>") == 1
         assert "> <svg" not in markdown
 
     def test_plain_heading_is_untouched(self):
         src = "# Plain Title\n\nProse.\n"
         doc = parse_markdown(src, book_slug="t")
-        t = {b.id: "普通标题" if b.kind == "heading" else "译"
-             for b in doc.translatable_blocks()}
+        t = {b.id: "普通标题" if b.kind == "heading" else "译" for b in doc.translatable_blocks()}
         md, _ = assemble_chapter(doc, doc.chapter_slugs()[0], t)
-        head = next(l for l in md.split("\n") if l.startswith("# "))
+        head = next(candidate for candidate in md.split("\n") if candidate.startswith("# "))
         assert head == "# 普通标题 · Plain Title"
 
     def test_trailing_whitespace_in_heading_is_trimmed(self):
         src = "# [Spaced Title   ](#x)\n\nProse.\n"
         doc = parse_markdown(src, book_slug="t")
-        t = {b.id: "标题" if b.kind == "heading" else "译"
-             for b in doc.translatable_blocks()}
+        t = {b.id: "标题" if b.kind == "heading" else "译" for b in doc.translatable_blocks()}
         md, _ = assemble_chapter(doc, doc.chapter_slugs()[0], t)
-        head = next(l for l in md.split("\n") if l.startswith("# "))
+        head = next(candidate for candidate in md.split("\n") if candidate.startswith("# "))
         assert head == "# 标题 · Spaced Title"
 
     def test_model_supplied_markdown_prefix_is_not_duplicated(self):
         src = "# Plain Title\n\nProse.\n"
         doc = parse_markdown(src, book_slug="t")
-        t = {b.id: "# 普通标题" if b.kind == "heading" else "译"
-             for b in doc.translatable_blocks()}
+        t = {b.id: "# 普通标题" if b.kind == "heading" else "译" for b in doc.translatable_blocks()}
         md, _ = assemble_chapter(doc, doc.chapter_slugs()[0], t)
-        head = next(l for l in md.split("\n") if l.startswith("# "))
+        head = next(candidate for candidate in md.split("\n") if candidate.startswith("# "))
         assert head == "# 普通标题 · Plain Title"
 
     def test_model_supplied_internal_link_is_stripped(self):
@@ -314,7 +320,7 @@ class TestHeadingCleanup:
             for b in doc.translatable_blocks()
         }
         md, _ = assemble_chapter(doc, doc.chapter_slugs()[0], t)
-        head = next(l for l in md.split("\n") if l.startswith("# "))
+        head = next(candidate for candidate in md.split("\n") if candidate.startswith("# "))
         assert head == "# 第一章 · Chapter 1"
 
     @pytest.mark.parametrize(
@@ -326,10 +332,7 @@ class TestHeadingCleanup:
     )
     def test_chapter_number_style_is_normalized(self, english, chinese, expected):
         doc = parse_markdown(f"# {english}\n\nProse.\n", book_slug="t")
-        t = {
-            b.id: chinese if b.kind == "heading" else "译"
-            for b in doc.translatable_blocks()
-        }
+        t = {b.id: chinese if b.kind == "heading" else "译" for b in doc.translatable_blocks()}
         md, _ = assemble_chapter(doc, doc.chapter_slugs()[0], t)
-        head = next(l for l in md.split("\n") if l.startswith("# "))
+        head = next(candidate for candidate in md.split("\n") if candidate.startswith("# "))
         assert head.startswith(f"# {expected} ·")

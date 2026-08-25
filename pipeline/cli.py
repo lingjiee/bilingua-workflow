@@ -62,10 +62,7 @@ def _chapter_cards(path: Path | None) -> dict[str, str]:
         return {}
     if not path.is_dir():
         raise CLIError(f"章节卡目录不存在：{path}")
-    return {
-        item.stem: item.read_text(encoding="utf-8")
-        for item in sorted(path.glob("*.md"))
-    }
+    return {item.stem: item.read_text(encoding="utf-8") for item in sorted(path.glob("*.md"))}
 
 
 def _image_annotations(paths: list[Path] | None):
@@ -74,9 +71,7 @@ def _image_annotations(paths: list[Path] | None):
         current = load_visual_annotations(path)
         duplicate = set(merged) & set(current)
         if duplicate:
-            raise CLIError(
-                f"视觉旁注图片路径重复（{path}）：" + ", ".join(sorted(duplicate))
-            )
+            raise CLIError(f"视觉旁注图片路径重复（{path}）：" + ", ".join(sorted(duplicate)))
         merged.update(current)
     return merged or None
 
@@ -136,10 +131,7 @@ def _build(args) -> int:
         if not report.ok:
             raise PublicationBlockedError("构建或校验未通过，不能发布。")
         chapter_paths = sorted((report.build_dir / "chapters").glob("*.md"))
-        chapters = [
-            (path.stem, path.read_text(encoding="utf-8"))
-            for path in chapter_paths
-        ]
+        chapters = [(path.stem, path.read_text(encoding="utf-8")) for path in chapter_paths]
         title = args.book_title or args.folder_name or report.book_slug
         folder = args.folder_name or report.book_slug
         images_dir = args.images_dir
@@ -158,7 +150,8 @@ def _build(args) -> int:
                 "构建目录": str(report.build_dir),
                 "视觉旁注": (
                     ", ".join(str(path) for path in args.image_annotations)
-                    if args.image_annotations else "none"
+                    if args.image_annotations
+                    else "none"
                 ),
             },
             images_dir=images_dir,
@@ -171,10 +164,7 @@ def _freeze_glossary(args) -> int:
     glossary = load_layers(args.root, domain=args.domain, book=args.book)
     snapshot = freeze(glossary, domain=args.domain, authors=args.author)
     snapshot.save(args.output)
-    print(
-        f"已冻结：{args.output} · version {snapshot.version} · "
-        f"approved {len(snapshot.senses)}"
-    )
+    print(f"已冻结：{args.output} · version {snapshot.version} · approved {len(snapshot.senses)}")
     return 0
 
 
@@ -182,8 +172,11 @@ def _apply_review(args) -> int:
     report = apply_review(args.build_dir, args.input)
     print(
         f"已导入审核：{report.chunk_count} chunks · "
-        f"{report.revised_block_count} 个段落"
+        f"{report.revised_block_count} 个段落 · "
+        f"{report.warning_count} 个跨块警告"
     )
+    if report.verification_path:
+        print(f"审核校验报告：{report.verification_path}")
     return 0
 
 

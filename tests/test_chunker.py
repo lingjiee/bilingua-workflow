@@ -6,9 +6,7 @@
 
 from __future__ import annotations
 
-import pytest
-
-from pipeline.chunker import Chunk, chunk_document
+from pipeline.chunker import chunk_document
 from pipeline.document import parse_markdown
 
 
@@ -120,7 +118,7 @@ class TestContextWindow:
         prev_ids = [b.id for b in second.prev_context]
         all_ids = [b.id for b in doc.translatable_blocks()]
         first_idx = all_ids.index(second.blocks[0].id)
-        assert prev_ids == all_ids[max(0, first_idx - 2):first_idx]
+        assert prev_ids == all_ids[max(0, first_idx - 2) : first_idx]
 
     def test_first_chunk_of_chapter_has_no_prev_context(self):
         doc = make_doc({"Alpha": 4, "Beta": 4})
@@ -134,7 +132,7 @@ class TestContextWindow:
         first = chunks[0]
         all_ids = [b.id for b in doc.translatable_blocks()]
         last_idx = all_ids.index(first.blocks[-1].id)
-        assert [b.id for b in first.next_context] == all_ids[last_idx + 1:last_idx + 2]
+        assert [b.id for b in first.next_context] == all_ids[last_idx + 1 : last_idx + 2]
 
     def test_last_chunk_of_chapter_has_no_next_context(self):
         doc = make_doc({"Alpha": 4, "Beta": 4})

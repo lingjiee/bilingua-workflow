@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import pytest
 
-from pipeline.document import Block, Document, parse_markdown, paragraph_id
-
+from pipeline.document import Document, paragraph_id, parse_markdown
 
 # ---------------------------------------------------------------- 段落 ID
+
 
 class TestParagraphId:
     def test_same_text_same_chapter_gives_same_id(self):
@@ -71,7 +71,9 @@ extraction_warnings:
 ---
 """
 
-SAMPLE = FRONTMATTER + """
+SAMPLE = (
+    FRONTMATTER
+    + """
 # Example Book
 
 ## 目录
@@ -102,6 +104,7 @@ code block, not prose
 
 Prose under the second chapter.
 """
+)
 
 
 class TestParseMarkdown:

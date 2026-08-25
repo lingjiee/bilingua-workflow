@@ -27,25 +27,30 @@ def sense(sid, surface, zh, **kw) -> Sense:
 
 # ---------------------------------------------------------------- D1 义项
 
+
 class TestSenseModel:
     def test_same_surface_different_authors_coexist(self):
         """三位作者对 job 的定义不同，这是学术分歧不是翻译问题。
         合并后必须两个义项都在，不能互相覆盖。"""
-        g = merge_layers(domain=[
-            sense("jtbd.job.christensen", "job", "任务",
-                  author="christensen", parent="jtbd.job"),
-            sense("jtbd.job.klement", "job", "任务",
-                  author="klement", parent="jtbd.job"),
-        ])
+        g = merge_layers(
+            domain=[
+                sense(
+                    "jtbd.job.christensen", "job", "任务", author="christensen", parent="jtbd.job"
+                ),
+                sense("jtbd.job.klement", "job", "任务", author="klement", parent="jtbd.job"),
+            ]
+        )
         senses = g.for_surface("job")
         assert len(senses) == 2
         assert {s.author for s in senses} == {"christensen", "klement"}
 
     def test_senses_share_a_parent_concept(self):
-        g = merge_layers(domain=[
-            sense("jtbd.job.a", "job", "任务", author="a", parent="jtbd.job"),
-            sense("jtbd.job.b", "job", "任务", author="b", parent="jtbd.job"),
-        ])
+        g = merge_layers(
+            domain=[
+                sense("jtbd.job.a", "job", "任务", author="a", parent="jtbd.job"),
+                sense("jtbd.job.b", "job", "任务", author="b", parent="jtbd.job"),
+            ]
+        )
         assert {s.parent for s in g.for_surface("job")} == {"jtbd.job"}
 
     def test_everyday_sense_is_separate_from_domain_sense(self):
@@ -69,8 +74,36 @@ class TestSenseModel:
         s = sense("x", "job", "任务", first_use="待办任务（job）")
         assert s.display_first_use == "待办任务（job）"
 
+    def test_source_aliases_and_forbidden_translations_round_trip(self):
+        original = sense(
+            "x",
+            "Jobs to Be Done play",
+            "实战方法",
+            surface_aliases=("JTBD play", "PLAY"),
+            forbidden_zh=("打法", "玩法"),
+        )
+        restored = Sense.from_dict(original.to_dict())
+        assert restored.source_forms == (
+            "Jobs to Be Done play",
+            "JTBD play",
+            "PLAY",
+        )
+        assert restored.forbidden_zh == ("打法", "玩法")
+
+    def test_all_caps_source_alias_is_case_sensitive(self):
+        play = sense(
+            "play",
+            "JTBD play",
+            "JTBD 实战方法",
+            surface_aliases=("PLAY",),
+        )
+        glossary = Glossary([play])
+        assert glossary.hits("**PLAY** Conduct Jobs Interviews") == [play]
+        assert glossary.hits("This play matters.") == []
+
 
 # ---------------------------------------------------------------- D2 三层
+
 
 class TestLayerMerge:
     def test_book_layer_overrides_domain(self):
@@ -124,38 +157,48 @@ class TestLayerMerge:
 
 # ---------------------------------------------------------------- 候选区
 
+
 class TestCandidates:
     def test_candidates_are_excluded_from_approved(self):
-        g = merge_layers(domain=[
-            sense("a", "alpha", "甲"),
-            Sense(id="b", surface="beta", zh="乙", status="candidate"),
-        ])
+        g = merge_layers(
+            domain=[
+                sense("a", "alpha", "甲"),
+                Sense(id="b", surface="beta", zh="乙", status="candidate"),
+            ]
+        )
         assert [s.id for s in g.approved()] == ["a"]
 
     def test_candidates_never_enter_a_snapshot(self):
         """D3：候选词不参与本次构建，否则同一次构建前后不一致。"""
-        g = merge_layers(domain=[
-            sense("a", "alpha", "甲"),
-            Sense(id="b", surface="beta", zh="乙", status="candidate"),
-        ])
+        g = merge_layers(
+            domain=[
+                sense("a", "alpha", "甲"),
+                Sense(id="b", surface="beta", zh="乙", status="candidate"),
+            ]
+        )
         snap = freeze(g, domain="jtbd")
         assert [s.id for s in snap.senses] == ["a"]
 
     def test_superseded_senses_are_excluded(self):
-        g = merge_layers(domain=[
-            sense("a", "alpha", "甲"),
-            Sense(id="b", surface="beta", zh="乙", status="superseded"),
-        ])
+        g = merge_layers(
+            domain=[
+                sense("a", "alpha", "甲"),
+                Sense(id="b", surface="beta", zh="乙", status="superseded"),
+            ]
+        )
         assert [s.id for s in g.approved()] == ["a"]
 
     def test_candidates_are_still_listed_for_review(self):
-        g = merge_layers(domain=[
-            Sense(id="b", surface="beta", zh="乙", status="candidate"),
-        ])
+        g = merge_layers(
+            domain=[
+                Sense(id="b", surface="beta", zh="乙", status="candidate"),
+            ]
+        )
         assert [s.id for s in g.candidates()] == ["b"]
 
 
 # ---------------------------------------------------------------- D3 快照
+
 
 class TestSnapshot:
     def test_version_is_deterministic(self):
@@ -170,10 +213,12 @@ class TestSnapshot:
 
     def test_version_is_stable_under_source_ordering(self):
         """两个人往表里加词的顺序不同，不该产生不同的快照版本。"""
-        a = freeze(merge_layers(domain=[
-            sense("a", "alpha", "甲"), sense("b", "beta", "乙")]), domain="d")
-        b = freeze(merge_layers(domain=[
-            sense("b", "beta", "乙"), sense("a", "alpha", "甲")]), domain="d")
+        a = freeze(
+            merge_layers(domain=[sense("a", "alpha", "甲"), sense("b", "beta", "乙")]), domain="d"
+        )
+        b = freeze(
+            merge_layers(domain=[sense("b", "beta", "乙"), sense("a", "alpha", "甲")]), domain="d"
+        )
         assert a.version == b.version
 
     def test_snapshot_is_immutable(self):
@@ -182,12 +227,16 @@ class TestSnapshot:
             snap.senses.append(sense("b", "beta", "乙"))  # type: ignore[attr-defined]
 
     def test_snapshot_roundtrips_through_yaml(self, tmp_path):
-        snap = freeze(merge_layers(domain=[
-            sense("a", "alpha", "甲", aliases_zh=("假名",), evidence=("x/y/§z",))
-        ]), domain="d")
+        snap = freeze(
+            merge_layers(
+                domain=[sense("a", "alpha", "甲", aliases_zh=("假名",), evidence=("x/y/§z",))]
+            ),
+            domain="d",
+        )
         p = tmp_path / "snap.lock.yaml"
         snap.save(p)
         from pipeline.glossary import load_snapshot
+
         back = load_snapshot(p)
         assert back.version == snap.version
         assert back.senses[0].aliases_zh == ("假名",)
@@ -200,12 +249,18 @@ class TestSnapshot:
     def test_snapshot_can_filter_author_specific_senses(self):
         common = sense("common", "customer", "客户")
         klement = Sense(
-            id="klement", surface="job", zh="待办任务",
-            author="Author One", status="approved",
+            id="klement",
+            surface="job",
+            zh="待办任务",
+            author="Author One",
+            status="approved",
         )
         christensen = Sense(
-            id="christensen", surface="job", zh="任务",
-            author="Author Two", status="approved",
+            id="christensen",
+            surface="job",
+            zh="任务",
+            author="Author Two",
+            status="approved",
         )
         snap = freeze(
             merge_layers(domain=[common, klement, christensen]),
@@ -217,29 +272,40 @@ class TestSnapshot:
 
     def test_snapshot_author_filter_roundtrips(self, tmp_path):
         snap = freeze(
-            merge_layers(domain=[Sense(
-                id="k", surface="job", zh="任务", author="Author One",
-                status="approved",
-            )]),
+            merge_layers(
+                domain=[
+                    Sense(
+                        id="k",
+                        surface="job",
+                        zh="任务",
+                        author="Author One",
+                        status="approved",
+                    )
+                ]
+            ),
             domain="jtbd",
             authors=["Author One"],
         )
         path = tmp_path / "author.lock"
         snap.save(path)
         from pipeline.glossary import load_snapshot
+
         assert load_snapshot(path).authors == ("Author One",)
 
 
 # ---------------------------------------------------------------- 命中
 
+
 class TestTermHits:
     @pytest.fixture
     def g(self) -> Glossary:
-        return merge_layers(domain=[
-            sense("j", "job", "任务"),
-            sense("p", "progress", "进步"),
-            sense("s", "struggling moment", "挣扎时刻"),
-        ])
+        return merge_layers(
+            domain=[
+                sense("j", "job", "任务"),
+                sense("p", "progress", "进步"),
+                sense("s", "struggling moment", "挣扎时刻"),
+            ]
+        )
 
     def test_finds_terms_present_in_text(self, g):
         hits = g.hits("The customer has a job to do.")
@@ -267,10 +333,12 @@ class TestTermHits:
         assert [s.id for s in g.hits("At the struggling moment.")] == ["s"]
 
     def test_returns_all_senses_of_a_hit_surface(self):
-        g = merge_layers(domain=[
-            sense("a", "job", "任务", author="christensen"),
-            sense("b", "job", "任务", author="klement"),
-        ])
+        g = merge_layers(
+            domain=[
+                sense("a", "job", "任务", author="christensen"),
+                sense("b", "job", "任务", author="klement"),
+            ]
+        )
         assert len(g.hits("a job")) == 2
 
     def test_no_hits_returns_empty(self, g):
@@ -282,30 +350,35 @@ class TestTermHits:
 
 # ---------------------------------------------------------------- 加载
 
+
 class TestLoadLayers:
     def test_loads_three_layers_from_disk(self, tmp_path):
         (tmp_path / "domains").mkdir()
         (tmp_path / "books").mkdir()
         (tmp_path / "global.yaml").write_text(
             "- id: g1\n  surface: Christensen\n  zh: 克里斯坦森\n  status: approved\n",
-            encoding="utf-8")
+            encoding="utf-8",
+        )
         (tmp_path / "domains" / "jtbd.yaml").write_text(
-            "- id: d1\n  surface: job\n  zh: 任务\n  status: approved\n",
-            encoding="utf-8")
+            "- id: d1\n  surface: job\n  zh: 任务\n  status: approved\n", encoding="utf-8"
+        )
         (tmp_path / "books" / "cal.yaml").write_text(
-            "- id: b1\n  surface: milkshake\n  zh: 奶昔\n  status: approved\n",
-            encoding="utf-8")
+            "- id: b1\n  surface: milkshake\n  zh: 奶昔\n  status: approved\n", encoding="utf-8"
+        )
         from pipeline.glossary import load_layers
+
         g = load_layers(tmp_path, domain="jtbd", book="cal")
         assert {s.id for s in g.approved()} == {"g1", "d1", "b1"}
 
     def test_missing_layer_files_are_tolerated(self, tmp_path):
         from pipeline.glossary import load_layers
+
         g = load_layers(tmp_path, domain="jtbd", book="cal")
         assert g.approved() == []
 
     def test_empty_yaml_file_is_tolerated(self, tmp_path):
         (tmp_path / "global.yaml").write_text("", encoding="utf-8")
         from pipeline.glossary import load_layers
+
         g = load_layers(tmp_path, domain="d", book="b")
         assert g.approved() == []
