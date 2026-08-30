@@ -1,10 +1,12 @@
 [project]
 name = "bilingua"
-version = "0.3.0"
+version = "0.3.1"
 description = "A reproducible, resumable workflow for paragraph-aligned bilingual books"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{name = "Ling"}]
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 keywords = ["translation", "bilingual", "markdown", "obsidian", "workflow"]
 classifiers = [
     "Development Status :: 3 - Alpha",
