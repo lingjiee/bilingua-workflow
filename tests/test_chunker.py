@@ -177,7 +177,7 @@ class TestChunkIdentity:
 
 
 class TestFlatStructureFallback:
-    """Kalbach 那本 3041 段只有 2 个 H1。按章切会切出一个几千段的巨块。"""
+    """三千多段的长书可能只有 2 个 H1。按章切会切出一个几千段的巨块。"""
 
     def test_huge_flat_chapter_still_produces_bounded_chunks(self):
         doc = make_doc({"OnlyChapter": 400}, words_per_para=100)
@@ -217,7 +217,7 @@ class TestEdgeCases:
 
 
 class TestFragmentation:
-    """真实书上发现的：H2 断点太激进会切出一堆碎块。
+    """长书实测发现的：H2 断点太激进会切出一堆碎块。
     碎块本身不算错，但每个 chunk 都要重发风格卡和术语表，
     切得越碎固定开销被乘得越多，上下文也越薄。"""
 

@@ -2,6 +2,19 @@
 
 All notable changes are documented here. Versions follow Semantic Versioning while the project remains pre-1.0.
 
+## [0.3.1] - 2026-08-30
+
+### Added
+
+- Apache-2.0 `LICENSE` and SPDX license metadata in `pyproject.toml`; the license file now ships inside the built distributions.
+- `.mailmap` normalising the author identity across a GitHub username change (display only; no history rewrite, so commit SHAs, tags and releases are unaffected).
+
+### Changed
+
+- First public release. `docs/REPOSITORY_BOUNDARIES.zh-CN.md` now states the repository's own public status and scopes the private-by-default rule to derived translation projects.
+- README maturity note updated from the stale `0.2.0` to `0.3.1`.
+- Test docstrings no longer name the specific real books used during development.
+
 ## [0.3.0] - 2026-08-25
 
 ### Added

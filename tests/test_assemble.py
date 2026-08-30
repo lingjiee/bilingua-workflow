@@ -244,7 +244,7 @@ class TestTableOfContents:
 
 
 class TestHeadingCleanup:
-    """真书上发现的：book2md 从 EPUB 抽出的标题常嵌着指向原书内部锚点的
+    """长书实测发现的：book2md 从 EPUB 抽出的标题常嵌着指向原书内部锚点的
     链接（如 `# [Title](#nav.xhtml_nch3)`）。原样带进译稿就是死链。"""
 
     def test_link_markup_is_stripped_from_headings(self):
